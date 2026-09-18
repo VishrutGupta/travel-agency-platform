@@ -1,5 +1,6 @@
 import { Agency, User } from "../types";
 import { mockAgency, DEFAULT_AGENCY_ID } from "../data/mockAgency";
+import { SupabaseAuthService } from "./supabaseAuthService";
 
 export interface IAuthService {
   getCurrentUser(): Promise<User | null>;
@@ -76,13 +77,13 @@ class MockAuthService implements IAuthService {
     }
   }
 
-  async getAgency(agencyId: string = DEFAULT_AGENCY_ID): Promise<Agency> {
+  async getAgency(_agencyId: string = DEFAULT_AGENCY_ID): Promise<Agency> {
     this.init();
     return this.agencyData;
   }
 
   async updateAgency(
-    agencyId: string = DEFAULT_AGENCY_ID,
+    _agencyId: string = DEFAULT_AGENCY_ID,
     data: Partial<Agency>
   ): Promise<Agency> {
     this.init();
@@ -97,4 +98,16 @@ class MockAuthService implements IAuthService {
   }
 }
 
-export const authService: IAuthService = new SupabaseAuthService(undefined as any);
+/**
+ * Exported singleton. Uses SupabaseAuthService when Supabase env vars are
+ * configured; falls back to MockAuthService for local development without
+ * a backend.
+ */
+const hasSupabase =
+  typeof process !== "undefined" &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+export const authService: IAuthService = hasSupabase
+  ? new SupabaseAuthService()
+  : new MockAuthService();

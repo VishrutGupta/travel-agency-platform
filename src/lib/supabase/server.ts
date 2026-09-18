@@ -1,34 +1,34 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-export async function createSupabaseServerClient(
-  request: NextRequest
-) {
-  const response = NextResponse.next({
-    request,
-  });
+/**
+ * Creates a Supabase server client for use in Next.js middleware or
+ * Route Handlers. Reads and writes auth cookies via the modern
+ * getAll/setAll API pattern required by @supabase/ssr 0.12+.
+ */
+export async function createSupabaseServerClient(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          const value = request.cookies[name];
-          return value || undefined;
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies[name] = value;
-          response.cookies[name] = value;
-          // Note: cannot set cookie options here as they are not passed through
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies[name] = "";
-          response.cookies[name] = "";
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
         },
       },
     }
   );
 
-  return { supabase, response };
+  return { supabase, response: supabaseResponse };
 }

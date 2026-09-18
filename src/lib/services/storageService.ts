@@ -1,3 +1,5 @@
+import { SupabaseStorageService } from "./supabaseStorageService";
+
 export interface UploadResult {
   url: string;
   filename: string;
@@ -59,4 +61,16 @@ class MockStorageService implements IStorageService {
   }
 }
 
-export const storageService: IStorageService = new SupabaseStorageService(undefined as any);
+/**
+ * Exported singleton. Uses SupabaseStorageService when Supabase env vars are
+ * configured; falls back to MockStorageService (FileReader/Data URL) for
+ * local development without a Supabase backend.
+ */
+const hasSupabase =
+  typeof process !== "undefined" &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+export const storageService: IStorageService = hasSupabase
+  ? new SupabaseStorageService()
+  : new MockStorageService();

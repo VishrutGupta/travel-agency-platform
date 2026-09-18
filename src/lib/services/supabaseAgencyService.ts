@@ -1,15 +1,18 @@
-import { IAuthService } from "../types";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import type { NextjsRequest } from "@supabase/ssr";
+import type { Agency } from "../types";
 
+/**
+ * Supabase-backed service for reading and updating agency/settings data.
+ * Instantiated per-request on the client side using the browser Supabase client.
+ */
 export class SupabaseAgencyService {
-  private supabase: ReturnType<typeof createSupabaseClient>["default"];
+  private supabase: ReturnType<typeof createSupabaseClient>;
 
-  constructor(request: NextjsRequest) {
-    this.supabase = createSupabaseClient(request);
+  constructor() {
+    this.supabase = createSupabaseClient();
   }
 
-  async getAgency(slug: string): Promise<any> {
+  async getAgency(slug: string): Promise<Agency> {
     const { data, error } = await this.supabase
       .from("agencies")
       .select("*")
@@ -17,17 +20,17 @@ export class SupabaseAgencyService {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as Agency;
   }
 
   async updateAgencySettings(
     agencyId: string,
-    data: any
-  ): Promise<any> {
+    updateData: Partial<Agency>
+  ): Promise<Agency> {
     const { data: updated, error } = await this.supabase
       .from("agencies")
       .update({
-        ...data,
+        ...updateData,
         updated_at: new Date().toISOString(),
       })
       .eq("id", agencyId)
@@ -35,6 +38,6 @@ export class SupabaseAgencyService {
       .single();
 
     if (error) throw error;
-    return updated;
+    return updated as Agency;
   }
 }

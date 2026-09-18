@@ -1,13 +1,15 @@
-import { IStorageService, UploadResult } from "../types";
-import { storageService } from "./storageService";
+import { type IStorageService, type UploadResult } from "./storageService";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import type { NextjsRequest } from "@supabase/ssr";
 
+/**
+ * Supabase-backed implementation of IStorageService.
+ * Uploads images and PDFs to Supabase Storage buckets.
+ */
 export class SupabaseStorageService implements IStorageService {
-  private supabase: ReturnType<typeof createSupabaseClient>["default"];
+  private supabase: ReturnType<typeof createSupabaseClient>;
 
-  constructor(request: NextjsRequest) {
-    this.supabase = createSupabaseClient(request);
+  constructor() {
+    this.supabase = createSupabaseClient();
   }
 
   async uploadImage(file: File): Promise<UploadResult> {
@@ -26,14 +28,14 @@ export class SupabaseStorageService implements IStorageService {
     const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 8)}.${fileExt}`;
     const filePath = `trip-images/${fileName}`;
 
-    const { data, error } = await this.supabase.storage
+    const { error: uploadError } = await this.supabase.storage
       .from("trip-images")
       .upload(filePath, file, {
         cacheControl: "3600",
         contentType: file.type,
       });
 
-    if (error) throw error;
+    if (uploadError) throw uploadError;
 
     // Get public URL
     const { data: urlData } = this.supabase.storage
@@ -61,14 +63,14 @@ export class SupabaseStorageService implements IStorageService {
     const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 8)}.${fileExt}`;
     const filePath = `trip-brochures/${fileName}`;
 
-    const { data, error } = await this.supabase.storage
+    const { error: uploadError } = await this.supabase.storage
       .from("trip-brochures")
       .upload(filePath, file, {
         cacheControl: "3600",
         contentType: file.type,
       });
 
-    if (error) throw error;
+    if (uploadError) throw uploadError;
 
     // Get public URL
     const { data: urlData } = this.supabase.storage
@@ -80,15 +82,5 @@ export class SupabaseStorageService implements IStorageService {
       filename: file.name,
       size: file.size,
     };
-  }
-
-  // Delegate to the existing mock storage service for backward compatibility
-  // In a full implementation, this would use Supabase Storage
-  async uploadImageLegacy(file: File): Promise<UploadResult> {
-    return storageService.uploadImage(file);
-  }
-
-  async uploadPdfLegacy(file: File): Promise<UploadResult> {
-    return storageService.uploadPdf(file);
   }
 }

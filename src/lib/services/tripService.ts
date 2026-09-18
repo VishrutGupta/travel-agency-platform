@@ -1,6 +1,7 @@
 import { mockTrips } from "../data/mockTrips";
 import { DEFAULT_AGENCY_ID } from "../data/mockAgency";
 import { Trip, TripFilter } from "../types";
+import { SupabaseTripService } from "./supabaseTripService";
 
 export interface ITripService {
   getTrips(agencyId?: string, includeInactive?: boolean): Promise<Trip[]>;
@@ -263,5 +264,16 @@ class MockTripService implements ITripService {
   }
 }
 
-// Singleton instance ready to be replaced with SupabaseTripService in the future
-export const tripService: ITripService = new SupabaseTripService(undefined as any);
+/**
+ * Exported singleton. Uses SupabaseTripService when Supabase env vars are
+ * configured; falls back to MockTripService (localStorage) for local
+ * development without a Supabase backend.
+ */
+const hasSupabase =
+  typeof process !== "undefined" &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+export const tripService: ITripService = hasSupabase
+  ? new SupabaseTripService()
+  : new MockTripService();

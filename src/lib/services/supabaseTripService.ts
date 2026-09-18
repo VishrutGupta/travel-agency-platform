@@ -1,19 +1,19 @@
-import { ITripService } from "../types";
-import { Trip, TripFilter } from "../types";
+import { type ITripService } from "./tripService";
+import { type Trip, type TripFilter } from "../types";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import { RealtimeChannel } from "@supabase/supabase-js";
 
+/**
+ * Supabase-backed implementation of ITripService.
+ * All database queries use snake_case column names matching the Supabase schema.
+ */
 export class SupabaseTripService implements ITripService {
-  private supabase: ReturnType<typeof createSupabaseClient>["default"];
+  private supabase: ReturnType<typeof createSupabaseClient>;
 
-  constructor(request: any) {
-    this.supabase = createSupabaseClient(request);
+  constructor() {
+    this.supabase = createSupabaseClient();
   }
 
-  async getTrips(
-    agencyId?: string,
-    includeInactive = false
-  ): Promise<Trip[]> {
+  async getTrips(agencyId?: string, includeInactive = false): Promise<Trip[]> {
     let query = this.supabase.from("trips").select("*");
 
     if (agencyId) {
@@ -27,13 +27,10 @@ export class SupabaseTripService implements ITripService {
     const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data as Trip[]) || [];
   }
 
-  async getTripBySlug(
-    agencyId?: string,
-    slug?: string
-  ): Promise<Trip | null> {
+  async getTripBySlug(agencyId?: string, slug?: string): Promise<Trip | null> {
     let query = this.supabase.from("trips").select("*").eq("slug", slug);
 
     if (agencyId) {
@@ -42,14 +39,11 @@ export class SupabaseTripService implements ITripService {
 
     const { data, error } = await query.single();
 
-    if (error) throw error;
-    return data || null;
+    if (error) return null;
+    return (data as Trip) || null;
   }
 
-  async getTripById(
-    agencyId?: string,
-    id?: string
-  ): Promise<Trip | null> {
+  async getTripById(agencyId?: string, id?: string): Promise<Trip | null> {
     let query = this.supabase.from("trips").select("*").eq("id", id);
 
     if (agencyId) {
@@ -58,8 +52,8 @@ export class SupabaseTripService implements ITripService {
 
     const { data, error } = await query.single();
 
-    if (error) throw error;
-    return data || null;
+    if (error) return null;
+    return (data as Trip) || null;
   }
 
   async getFeaturedTrips(agencyId?: string): Promise<Trip[]> {
@@ -73,12 +67,10 @@ export class SupabaseTripService implements ITripService {
       query = query.eq("agency_id", agencyId);
     }
 
-    const { data, error } = await query.order("created_at", {
-      ascending: false,
-    });
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data as Trip[]) || [];
   }
 
   async getDestinations(agencyId?: string): Promise<string[]> {
@@ -92,14 +84,11 @@ export class SupabaseTripService implements ITripService {
 
     if (error) throw error;
     const destSet = new Set<string>();
-    data?.forEach((t: any) => destSet.add(t.destination));
+    data?.forEach((t: { destination: string }) => destSet.add(t.destination));
     return Array.from(destSet);
   }
 
-  async searchTrips(
-    agencyId?: string,
-    filters: TripFilter = {}
-  ): Promise<Trip[]> {
+  async searchTrips(agencyId?: string, filters: TripFilter = {}): Promise<Trip[]> {
     let query = this.supabase.from("trips").select("*");
 
     if (agencyId) {
@@ -185,110 +174,102 @@ export class SupabaseTripService implements ITripService {
       query = query.eq("featured", true);
     }
 
-    const { data, error } = await query.order("created_at", {
-      ascending: false,
-    });
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data as Trip[]) || [];
   }
 
   async createTrip(
     agencyId: string,
-    data: Omit<Trip, "id" | "agencyId" | "createdAt" | "updatedAt">
+    tripData: Omit<Trip, "id" | "agencyId" | "createdAt" | "updatedAt">
   ): Promise<Trip> {
-    const { data, error } = await this.supabase
+    // Use a distinct variable name to avoid duplicate 'data' identifier
+    const { data: insertedTrip, error: insertError } = await this.supabase
       .from("trips")
       .insert({
         agency_id: agencyId,
-        title: data.title,
-        slug: data.slug,
-        destination: data.destination,
-        region: data.region,
-        start_date: data.startDate,
-        end_date: data.endDate,
-        duration: data.duration,
-        nights: data.nights,
-        price: data.price,
-        original_price: data.originalPrice,
-        short_description: data.shortDescription,
-        description: data.description,
-        cover_image_url: data.imageUrl,
-        gallery_urls: data.galleryUrls || [],
-        brochure_url: data.brochureUrl,
-        trip_type: data.tripType,
-        experience: data.experience,
-        difficulty: data.difficulty,
-        family_friendly: data.familyFriendly,
-        featured: data.featured,
-        is_active: data.isActive,
-        highlights: data.highlights || [],
-        inclusions: data.inclusions || [],
-        exclusions: data.exclusions || [],
-        itinerary: data.itinerary || [],
-        important_info: data.importantInfo || [],
-        max_group_size: data.maxGroupSize,
-        whatsapp_number: data.whatsappNumber,
+        title: tripData.title,
+        slug: tripData.slug,
+        destination: tripData.destination,
+        region: tripData.region,
+        start_date: tripData.startDate,
+        end_date: tripData.endDate,
+        duration: tripData.duration,
+        nights: tripData.nights,
+        price: tripData.price,
+        original_price: tripData.originalPrice,
+        short_description: tripData.shortDescription,
+        description: tripData.description,
+        cover_image_url: tripData.imageUrl,
+        gallery_urls: tripData.galleryUrls || [],
+        brochure_url: tripData.brochureUrl,
+        trip_type: tripData.tripType,
+        experience: tripData.experience,
+        difficulty: tripData.difficulty,
+        family_friendly: tripData.familyFriendly,
+        featured: tripData.featured,
+        is_active: tripData.isActive,
+        highlights: tripData.highlights || [],
+        inclusions: tripData.inclusions || [],
+        exclusions: tripData.exclusions || [],
+        itinerary: tripData.itinerary || [],
+        important_info: tripData.importantInfo || [],
+        max_group_size: tripData.maxGroupSize,
+        whatsapp_number: tripData.whatsappNumber,
       })
       .select()
       .single();
 
-    if (error) throw error;
-    return data as Trip;
+    if (insertError) throw insertError;
+    return insertedTrip as Trip;
   }
 
-  async updateTrip(
-    agencyId: string,
-    id: string,
-    data: Partial<Trip>
-  ): Promise<Trip> {
-    const updateData: any = {
+  async updateTrip(agencyId: string, id: string, tripData: Partial<Trip>): Promise<Trip> {
+    const updatePayload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
-    if (data.title !== undefined) updateData.title = data.title;
-    if (data.slug !== undefined) updateData.slug = data.slug;
-    if (data.destination !== undefined) updateData.destination = data.destination;
-    if (data.region !== undefined) updateData.region = data.region;
-    if (data.startDate !== undefined) updateData.start_date = data.startDate;
-    if (data.endDate !== undefined) updateData.end_date = data.endDate;
-    if (data.duration !== undefined) updateData.duration = data.duration;
-    if (data.nights !== undefined) updateData.nights = data.nights;
-    if (data.price !== undefined) updateData.price = data.price;
-    if (data.originalPrice !== undefined) updateData.original_price = data.originalPrice;
-    if (data.shortDescription !== undefined)
-      updateData.short_description = data.shortDescription;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.imageUrl !== undefined) updateData.cover_image_url = data.imageUrl;
-    if (data.galleryUrls !== undefined) updateData.gallery_urls = data.galleryUrls;
-    if (data.brochureUrl !== undefined) updateData.brochure_url = data.brochureUrl;
-    if (data.tripType !== undefined) updateData.trip_type = data.tripType;
-    if (data.experience !== undefined) updateData.experience = data.experience;
-    if (data.difficulty !== undefined) updateData.difficulty = data.difficulty;
-    if (data.familyFriendly !== undefined)
-      updateData.family_friendly = data.familyFriendly;
-    if (data.featured !== undefined) updateData.featured = data.featured;
-    if (data.isActive !== undefined) updateData.is_active = data.isActive;
-    if (data.highlights !== undefined) updateData.highlights = data.highlights;
-    if (data.inclusions !== undefined) updateData.inclusions = data.inclusions;
-    if (data.exclusions !== undefined) updateData.exclusions = data.exclusions;
-    if (data.itinerary !== undefined) updateData.itinerary = data.itinerary;
-    if (data.importantInfo !== undefined)
-      updateData.important_info = data.importantInfo;
-    if (data.maxGroupSize !== undefined) updateData.max_group_size = data.maxGroupSize;
-    if (data.whatsappNumber !== undefined)
-      updateData.whatsapp_number = data.whatsappNumber;
+    if (tripData.title !== undefined) updatePayload.title = tripData.title;
+    if (tripData.slug !== undefined) updatePayload.slug = tripData.slug;
+    if (tripData.destination !== undefined) updatePayload.destination = tripData.destination;
+    if (tripData.region !== undefined) updatePayload.region = tripData.region;
+    if (tripData.startDate !== undefined) updatePayload.start_date = tripData.startDate;
+    if (tripData.endDate !== undefined) updatePayload.end_date = tripData.endDate;
+    if (tripData.duration !== undefined) updatePayload.duration = tripData.duration;
+    if (tripData.nights !== undefined) updatePayload.nights = tripData.nights;
+    if (tripData.price !== undefined) updatePayload.price = tripData.price;
+    if (tripData.originalPrice !== undefined) updatePayload.original_price = tripData.originalPrice;
+    if (tripData.shortDescription !== undefined) updatePayload.short_description = tripData.shortDescription;
+    if (tripData.description !== undefined) updatePayload.description = tripData.description;
+    if (tripData.imageUrl !== undefined) updatePayload.cover_image_url = tripData.imageUrl;
+    if (tripData.galleryUrls !== undefined) updatePayload.gallery_urls = tripData.galleryUrls;
+    if (tripData.brochureUrl !== undefined) updatePayload.brochure_url = tripData.brochureUrl;
+    if (tripData.tripType !== undefined) updatePayload.trip_type = tripData.tripType;
+    if (tripData.experience !== undefined) updatePayload.experience = tripData.experience;
+    if (tripData.difficulty !== undefined) updatePayload.difficulty = tripData.difficulty;
+    if (tripData.familyFriendly !== undefined) updatePayload.family_friendly = tripData.familyFriendly;
+    if (tripData.featured !== undefined) updatePayload.featured = tripData.featured;
+    if (tripData.isActive !== undefined) updatePayload.is_active = tripData.isActive;
+    if (tripData.highlights !== undefined) updatePayload.highlights = tripData.highlights;
+    if (tripData.inclusions !== undefined) updatePayload.inclusions = tripData.inclusions;
+    if (tripData.exclusions !== undefined) updatePayload.exclusions = tripData.exclusions;
+    if (tripData.itinerary !== undefined) updatePayload.itinerary = tripData.itinerary;
+    if (tripData.importantInfo !== undefined) updatePayload.important_info = tripData.importantInfo;
+    if (tripData.maxGroupSize !== undefined) updatePayload.max_group_size = tripData.maxGroupSize;
+    if (tripData.whatsappNumber !== undefined) updatePayload.whatsapp_number = tripData.whatsappNumber;
 
-    const { data, error } = await this.supabase
+    // Use a distinct variable name to avoid duplicate 'data' identifier
+    const { data: updatedTrip, error: updateError } = await this.supabase
       .from("trips")
-      .update(updateData)
+      .update(updatePayload)
       .eq("id", id)
       .eq("agency_id", agencyId)
       .select()
       .single();
 
-    if (error) throw error;
-    return data as Trip;
+    if (updateError) throw updateError;
+    return updatedTrip as Trip;
   }
 
   async deleteTrip(agencyId: string, id: string): Promise<boolean> {
@@ -302,11 +283,8 @@ export class SupabaseTripService implements ITripService {
     return true;
   }
 
-  async toggleTripStatus(
-    agencyId: string,
-    id: string
-  ): Promise<Trip> {
-    // First get the current trip to determine the toggle state
+  async toggleTripStatus(agencyId: string, id: string): Promise<Trip> {
+    // First get the current trip status
     const { data: currentTrip, error: fetchError } = await this.supabase
       .from("trips")
       .select("is_active")
@@ -316,14 +294,17 @@ export class SupabaseTripService implements ITripService {
     if (fetchError) throw fetchError;
     if (!currentTrip) throw new Error("Trip not found");
 
-    const { data, error } = await this.supabase
+    const { data: toggledTrip, error: toggleError } = await this.supabase
       .from("trips")
-      .update({ is_active: !currentTrip.is_active, updated_at: new Date().toISOString() })
+      .update({
+        is_active: !currentTrip.is_active,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .select()
       .single();
 
-    if (error) throw error;
-    return data as Trip;
+    if (toggleError) throw toggleError;
+    return toggledTrip as Trip;
   }
 }

@@ -1,17 +1,23 @@
-import { IAuthService, User } from "../types";
+import { type IAuthService } from "./authService";
+import { type Agency, type User } from "../types";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import { RealtimeChannel } from "@supabase/supabase-js";
-import type { NextjsRequest } from "@supabase/ssr";
 
+/**
+ * Supabase-backed implementation of IAuthService.
+ * Uses the browser Supabase client (createBrowserClient) for auth operations.
+ */
 export class SupabaseAuthService implements IAuthService {
-  private supabase: ReturnType<typeof createSupabaseClient>["default"];
+  private supabase: ReturnType<typeof createSupabaseClient>;
 
-  constructor(request: NextjsRequest) {
-    this.supabase = createSupabaseClient(request);
+  constructor() {
+    this.supabase = createSupabaseClient();
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const { data: { user }, error } = await this.supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await this.supabase.auth.getUser();
 
     if (error) {
       console.error("Supabase auth error:", error);
@@ -34,7 +40,6 @@ export class SupabaseAuthService implements IAuthService {
       return null;
     }
 
-    // Map the profile to our User type
     const mappedUser: User = {
       id: profile.id,
       agencyId: profile.agency_id,
@@ -71,7 +76,8 @@ export class SupabaseAuthService implements IAuthService {
       id: profile.id,
       agencyId: profile.agency_id,
       email: profile.email || data.user.email!,
-      name: profile.full_name || data.user.email!.split("@")[0].replace(".", " "),
+      name:
+        profile.full_name || data.user.email!.split("@")[0].replace(".", " "),
       role: profile.role || "owner",
     };
 
@@ -80,13 +86,10 @@ export class SupabaseAuthService implements IAuthService {
 
   async logout(): Promise<void> {
     const { error } = await this.supabase.auth.signOut();
-
     if (error) throw error;
   }
 
   async getAgency(agencyId?: string): Promise<Agency> {
-    // This service method needs the agencyId, but SupabaseAuthService gets user profile
-    // For backward compatibility, we'll query the agencies table
     const { data, error } = await this.supabase
       .from("agencies")
       .select("*")
@@ -97,27 +100,24 @@ export class SupabaseAuthService implements IAuthService {
     return data as Agency;
   }
 
-  async updateAgency(
-    agencyId: string,
-    data: Partial<Agency>
-  ): Promise<Agency> {
+  async updateAgency(agencyId: string, updateData: Partial<Agency>): Promise<Agency> {
     const { data: updated, error } = await this.supabase
       .from("agencies")
       .update({
-        name: data.name,
-        tagline: data.tagline,
-        description: data.description,
-        phone: data.phone,
-        whatsapp: data.whatsapp,
-        email: data.email,
-        address: data.address,
-        instagram_url: data.instagram,
-        facebook_url: data.facebook,
-        website_url: data.website,
-        accentColor: data.accentColor,
+        name: updateData.name,
+        tagline: updateData.tagline,
+        description: updateData.description,
+        phone: updateData.phone,
+        whatsapp: updateData.whatsapp,
+        email: updateData.email,
+        address: updateData.address,
+        instagram_url: updateData.instagram,
+        facebook_url: updateData.facebook,
+        website_url: updateData.website,
+        accentColor: updateData.accentColor,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", data.id)
+      .eq("id", updateData.id)
       .select()
       .single();
 
