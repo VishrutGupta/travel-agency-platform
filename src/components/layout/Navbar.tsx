@@ -92,8 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAssistant }) => {
             })}
           </nav>
 
-          {/* Right Action: Travel Assistant & Admin Link */}
-          <div className="hidden md:flex items-center gap-4">
+{/* Right Action: Travel Assistant */}
             <button
               type="button"
               onClick={handleOpenAssistant}
@@ -102,15 +101,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAssistant }) => {
               <Sparkles className="w-3.5 h-3.5 text-[#4B6B5B]" />
               <span>Travel Assistant</span>
             </button>
-
-            <Link
-              href="/admin"
-              className="text-xs text-[#6B7280] hover:text-[#1C1E21] font-medium transition-colors ml-2"
-              title="Agency Owner Dashboard"
-            >
-              Owner Portal
-            </Link>
-          </div>
 
           {/* Mobile Menu Toggle Button */}
           <div className="flex md:hidden items-center gap-3">
@@ -175,13 +165,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAssistant }) => {
           </nav>
 
           <div className="pt-8 border-t border-[#E5E0D8] flex flex-col gap-4">
-            <Link
-              href="/admin"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm text-[#6B7280] hover:text-[#1C1E21] font-medium"
-            >
-              Owner Admin Portal →
-            </Link>
             <p className="text-xs text-[#9CA3AF]">
               © {new Date().getFullYear()} {agency?.name || "Alpine & Co."}. All rights reserved.
             </p>

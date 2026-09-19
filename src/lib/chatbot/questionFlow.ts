@@ -1,4 +1,10 @@
 import { AssistantQuestion, AssistantUserAnswers } from "../types";
+import { resolveTravelDate } from "./resolveDate";
+
+const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const now = new Date();
+const thisMonthName = monthNames[now.getMonth()];
+const nextMonthName = monthNames[(now.getMonth() + 1) % 12];
 
 export const CHATBOT_QUESTIONS: AssistantQuestion[] = [
   {
@@ -33,8 +39,8 @@ export const CHATBOT_QUESTIONS: AssistantQuestion[] = [
     prompt: "When would you like to travel?",
     subtitle: "We run curated departures aligned with the best seasons.",
     options: [
-      { label: "This month (October)", value: "this_month" },
-      { label: "Next month (November)", value: "next_month" },
+      { label: `This month (${thisMonthName})`, value: "this_month" },
+      { label: `Next month (${nextMonthName})`, value: "next_month" },
       { label: "In 2–3 months", value: "2_3_months" },
       { label: "I'm flexible with dates", value: "flexible" },
     ],
@@ -98,9 +104,9 @@ export function getNextQuestion(
     }
 
     if (q.conditionalOn) {
-      const parentVal = (currentAnswers as any)[q.conditionalOn.questionId];
+      const parentVal = (currentAnswers as Record<string, string | string[]>)[q.conditionalOn.questionId] as string | undefined;
       if (Array.isArray(q.conditionalOn.value)) {
-        if (!q.conditionalOn.value.includes(parentVal)) {
+        if (!parentVal || !q.conditionalOn.value.includes(parentVal)) {
           continue;
         }
       } else if (parentVal !== q.conditionalOn.value) {

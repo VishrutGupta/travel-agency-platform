@@ -104,6 +104,28 @@ export class SupabaseAuthService implements IAuthService {
     if (error) throw error;
   }
 
+  async forgotPassword(email: string): Promise<void> {
+    const { error } = await this.supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const { error } = await this.supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (error) throw error;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const { data: { user } } = await this.supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated.");
+
+    const { error } = await this.supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (error) throw error;
+  }
+
   async signup(email: string, password: string, fullName: string): Promise<User> {
     // Check if owner already exists - server-side enforcement
     const { count, error: countError } = await this.supabase
@@ -161,27 +183,6 @@ export class SupabaseAuthService implements IAuthService {
     };
 
     return mappedUser;
-  }
-
-  async googleLogin(): Promise<User> {
-    // Initiate Google OAuth sign in
-    const { data, error } = await this.supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        // redirectTo will use the supabase OAuth callback route
-        // The actual callback handling is done by @supabase/ssr
-      },
-    });
-
-    if (error) throw error;
-
-    if (!data.url) {
-      throw new Error("Google login failed - no redirect URL returned.");
-    }
-
-    // Return the URL so the component can redirect the user
-    // The actual OAuth flow will happen after redirect
-    throw data.url;
   }
 
   async getAgency(agencyId?: string): Promise<Agency> {
@@ -273,6 +274,18 @@ class MockAuthService implements IAuthService {
     }
   }
 
+  async forgotPassword(_email: string): Promise<void> {
+    // Mock: no-op
+  }
+
+  async resetPassword(_token: string, _newPassword: string): Promise<void> {
+    // Mock: no-op
+  }
+
+  async changePassword(_current: string, _new: string): Promise<void> {
+    // Mock: no-op
+  }
+
   async getAgency(_agencyId: string = "agency-default-01"): Promise<Agency> {
     this.init();
     // Return mock agency data
@@ -331,31 +344,9 @@ class MockAuthService implements IAuthService {
     return user;
   }
 
-  async googleLogin(): Promise<User> {
-    this.init();
-    // In mock mode, create a mock user
-    const user: User = {
-      id: "mock-google-user-01",
-      agencyId: "agency-default-01",
-      email: "google-user@alpine-expeditions.com",
-      name: "Google User",
-      role: "owner",
-    };
-
-    this.currentUser = user;
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(
-          "alpine_auth_user_v1",
-          JSON.stringify(user)
-        );
-      } catch (e) {
-        console.warn("Failed to save mock Google user to localStorage", e);
-      }
-    }
-    return user;
   }
-}
+
+/**
 
 /**
  * Exported singleton.

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Save, Check, ShieldCheck, MessageCircle, Globe, Building } from "lucide-react";
+import { Save, Check, ShieldCheck, MessageCircle, Globe, Building, Lock, Key } from "lucide-react";
 import { authService } from "@/lib/services/authService";
 import { Agency } from "@/lib/types";
 import { DEFAULT_AGENCY_ID } from "@/lib/data/mockAgency";
@@ -12,6 +12,15 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  // Change Password Fields
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSaved, setPasswordSaved] = useState(false);
 
   // Form Fields
   const [name, setName] = useState("");
@@ -69,6 +78,38 @@ export default function AdminSettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to update agency configuration.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSaved(false);
+    setChangingPassword(true);
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("Passwords do not match.");
+      setChangingPassword(false);
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters.");
+      setChangingPassword(false);
+      return;
+    }
+
+    try {
+      await authService.changePassword(currentPassword, newPassword);
+      setPasswordSaved(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setShowChangePassword(false);
+    } catch (err: unknown) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to change password.");
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -249,6 +290,97 @@ export default function AdminSettingsPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Change Password */}
+        <div className="bg-white rounded-3xl border border-[#E5E0D8] p-6 sm:p-8 flex flex-col gap-5 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => { setShowChangePassword(!showChangePassword); setPasswordError(null); setPasswordSaved(false); }}
+            className="flex items-center justify-between w-full"
+          >
+            <h2 className="text-sm font-semibold text-[#1C1E21] uppercase tracking-wider border-b border-[#F0EFEA] pb-3 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Change Password</span>
+            </h2>
+            <span className="text-xs text-[#6B7280]">
+              {showChangePassword ? "▲" : "▼"}
+            </span>
+          </button>
+          {showChangePassword && (
+            <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+              {passwordError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                  {passwordError}
+                </div>
+              )}
+              {passwordSaved && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  Password updated successfully.
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-[#374151]">
+                  Current Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-3" />
+                  <input
+                    type="password"
+                    required={showChangePassword}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E0D8] text-xs sm:text-sm font-medium focus:ring-2 focus-ring-[#4B6B5B]/20 outline-hidden"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-[#374151]">
+                  New Password
+                </label>
+                <div className="relative">
+                  <Key className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-3" />
+                  <input
+                    type="password"
+                    required={showChangePassword}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E0D8] text-xs sm:text-sm font-medium focus:ring-2 focus-ring-[#4B6B5B]/20 outline-hidden"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-[#374151]">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <Key className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-3" />
+                  <input
+                    type="password"
+                    required={showChangePassword}
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E0D8] text-xs sm:text-sm font-medium focus:ring-2 focus-ring-[#4B6B5B]/20 outline-hidden"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={changingPassword}
+                className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-[#1C1E21] hover:bg-[#2A3A4A] text-white text-xs sm:text-sm font-semibold shadow-md transition-all disabled:opacity-75"
+              >
+                {changingPassword ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>Change Password</span>
+                )}
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Submit */}

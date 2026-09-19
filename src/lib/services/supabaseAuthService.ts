@@ -84,16 +84,6 @@ export class SupabaseAuthService implements IAuthService {
     return mappedUser;
   }
 
-  async googleLogin(): Promise<User> {
-    const { data, error } = await this.supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {},
-    });
-    if (error) throw error;
-    if (!data.url) throw new Error("Google login failed - no redirect URL returned.");
-    throw data.url;
-  }
-
   async signup(email: string, password: string, fullName: string): Promise<User> {
     const { count, error: countError } = await this.supabase
       .from("profiles")
@@ -141,6 +131,28 @@ export class SupabaseAuthService implements IAuthService {
 
   async logout(): Promise<void> {
     const { error } = await this.supabase.auth.signOut();
+    if (error) throw error;
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const { error } = await this.supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const { error } = await this.supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (error) throw error;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const { data: { user } } = await this.supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated.");
+
+    const { error } = await this.supabase.auth.updateUser({
+      password: newPassword,
+    });
     if (error) throw error;
   }
 

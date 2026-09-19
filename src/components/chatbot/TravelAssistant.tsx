@@ -8,6 +8,7 @@ import {
   Compass,
   MessageCircle,
   ChevronDown,
+  ArrowRight,
 } from "lucide-react";
 import {
   AssistantChoice,
@@ -20,7 +21,9 @@ import {
   CHATBOT_QUESTIONS,
   getNextQuestion,
 } from "@/lib/chatbot/questionFlow";
+import { resolveTravelDate } from "@/lib/chatbot/resolveDate";
 import { findMatchingTrips } from "@/lib/chatbot/ranking";
+import { tripService } from "@/lib/services/tripService";
 import { ChatMessage } from "./ChatMessage";
 import { BrochureModal } from "../trips/BrochureModal";
 import { authService } from "@/lib/services/authService";
@@ -34,7 +37,68 @@ export const TravelAssistant: React.FC = () => {
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<string[]>([]);
   const [activeBrochureTrip, setActiveBrochureTrip] = useState<Trip | null>(null);
   const [agencyWhatsApp, setAgencyWhatsApp] = useState("919820045120");
+  const [textInput, setTextInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleSendText = async () => {
+    const text = textInput.trim();
+    if (!text) return;
+
+    const userMsg: ChatMessageItem = {
+      id: `user-${Date.now()}`,
+      sender: "user",
+      text,
+      timestamp: new Date().toISOString(),
+    };
+
+    const newMessages = [...messages, userMsg];
+    setTextInput("");
+    setMessages(newMessages);
+
+    // Try to resolve date from text
+    const resolved = resolveTravelDate(text);
+    if (resolved) {
+      const dateStr = resolved.date.toISOString().split("T")[0];
+      const assistantMsg: ChatMessageItem = {
+        id: `assistant-${Date.now()}`,
+        sender: "assistant",
+        text: `Looking for trips on ${resolved.label} (${dateStr})...`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+
+      const trips = await tripService.getTrips(undefined, true);
+      const dateTrips = trips.filter((t) => t.startDate <= dateStr && t.endDate >= dateStr && t.isActive);
+
+      if (dateTrips.length > 0) {
+        const resultMsg: ChatMessageItem = {
+          id: `msg-results-${Date.now()}`,
+          sender: "assistant",
+          text: `I found ${dateTrips.length} trip(s) available for ${resolved.label}:`,
+          trips: dateTrips.slice(0, 4),
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, resultMsg]);
+      } else {
+        const noResultMsg: ChatMessageItem = {
+          id: `msg-nores-${Date.now()}`,
+          sender: "assistant",
+          text: `I couldn't find a trip available for ${resolved.label}. Would you like to see nearby available dates?`,
+          actionSuggestions: [{ label: "Show all upcoming trips", action: "show_all" }],
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, noResultMsg]);
+      }
+    } else {
+      const fallbackMsg: ChatMessageItem = {
+        id: `msg-fallback-${Date.now()}`,
+        sender: "assistant",
+        text: "I can help with date-related queries like 'I want to go tomorrow' or 'next week'. Try asking about dates!",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    }
+  };
 
   // Initialize on mount
   useEffect(() => {
@@ -370,7 +434,28 @@ export const TravelAssistant: React.FC = () => {
                     agencyWhatsApp={agencyWhatsApp}
                   />
                 ))}
-                <div ref={messagesEndRef} />
+<div ref={messagesEndRef} />
+               </div>
+
+              {/* Text Message Input */}
+              <div className="p-3 bg-[#F5F4F0] border-t border-[#E5E0D8] flex items-center gap-2">
+                <input
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendText()}
+                  placeholder="Ask about dates, e.g. 'I want to go tomorrow'"
+                  className="flex-1 px-3 py-2 rounded-xl border border-[#E5E0D8] text-xs font-medium focus:ring-2 focus-ring-[#4B6B5B]/20 outline-hidden bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendText}
+                  disabled={!textInput.trim()}
+                  className="p-2 rounded-xl bg-[#1C1E21] hover:bg-[#2A3A4A] text-white disabled:opacity-50 transition-colors"
+                  aria-label="Send message"
+                >
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Footer WhatsApp Link */}

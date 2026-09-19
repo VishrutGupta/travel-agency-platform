@@ -135,7 +135,9 @@ export interface IAuthService {
   login(email: string, password: string): Promise<User>;
   logout(): Promise<void>;
   signup(email: string, password: string, fullName: string): Promise<User>;
-  googleLogin(): Promise<User>;
+  forgotPassword(email: string): Promise<void>;
+  resetPassword(token: string, newPassword: string): Promise<void>;
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
   getAgency(agencyId?: string): Promise<Agency>;
   updateAgency(agencyId: string, updateData: Partial<Agency>): Promise<Agency>;
 }
