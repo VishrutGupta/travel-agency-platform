@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, ArrowRight, ArrowLeft } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
@@ -12,8 +12,6 @@ const supabase = createBrowserClient(
 );
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);

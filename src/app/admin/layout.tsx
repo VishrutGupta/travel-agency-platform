@@ -6,6 +6,17 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { authService } from "@/lib/services/authService";
 import { User } from "@/lib/types";
 
+const PUBLIC_AUTH_ROUTES = [
+  "/admin/login",
+  "/admin/signup",
+  "/admin/forgot-password",
+  "/admin/reset-password",
+];
+
+function isPublicAuthRoute(pathname: string): boolean {
+  return PUBLIC_AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(route + "/"));
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -17,8 +28,7 @@ export default function AdminLayout({
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // If on login page, skip authentication check
-    if (pathname === "/admin/login") {
+    if (isPublicAuthRoute(pathname)) {
       setChecking(false);
       return;
     }
@@ -33,8 +43,7 @@ export default function AdminLayout({
     });
   }, [pathname, router]);
 
-  // Login page layout without sidebar
-  if (pathname === "/admin/login") {
+  if (isPublicAuthRoute(pathname)) {
     return <>{children}</>;
   }
 
