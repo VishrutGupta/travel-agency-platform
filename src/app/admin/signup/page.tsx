@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Compass, Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck, Check } from "lucide-react";
+import { Compass, Lock, Mail, ArrowRight, Eye, EyeOff, Check } from "lucide-react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/
@@ -50,6 +50,7 @@ export default function AdminSignupPage() {
   const [ownerExists, setOwnerExists] = useState(false)
   const [checking, setChecking] = useState(true)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const signupLock = useRef(false)
 
   const passwordStrength = getPasswordStrength(password)
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword
@@ -97,11 +98,13 @@ export default function AdminSignupPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (signupLock.current) return
     setError(null)
     setFieldErrors({})
 
     if (!validate()) return
 
+    signupLock.current = true
     setLoading(true)
 
     try {
@@ -113,9 +116,13 @@ export default function AdminSignupPage() {
 
       const data = await response.json()
 
+      console.error("[signup] Response status:", response.status)
+      console.error("[signup] Response data:", JSON.stringify(data))
+
       if (!response.ok) {
-        const errorMsg = data.error || "Signup failed."
-        if (response.status === 403) {
+        if (data.error === "over_email_send_rate_limit") {
+          setError("Too many verification emails have been requested. Please wait a while and try again.")
+        } else if (response.status === 403) {
           setError("An owner account already exists. Please sign in.")
         } else if (data.error === "weak_password") {
           setError("Your password does not meet the required security requirements.")
@@ -123,22 +130,30 @@ export default function AdminSignupPage() {
           setError("An account with this email already exists. Please sign in.")
         } else if (data.error === "email_not_confirmed") {
           setError("Please verify your email address before signing in.")
+        } else if (data.message) {
+          setError(data.message)
+        } else if (data.error) {
+          setError(data.error)
         } else {
-          setError(errorMsg)
+          setError("Account creation failed. Please try again.")
         }
         setLoading(false)
+        signupLock.current = false
         return
       }
 
+      signupLock.current = false
       const requiresConfirmation = data.requiresEmailConfirmation
       if (requiresConfirmation) {
         router.push("/admin/login?message=verify")
       } else {
         router.push("/admin")
       }
-    } catch {
-      setError("We couldn't create your account. Please try again.")
+    } catch (err) {
+      console.error("[signup] Fetch error:", err)
+      setError("Account creation failed. Please try again.")
       setLoading(false)
+      signupLock.current = false
     }
   }
 

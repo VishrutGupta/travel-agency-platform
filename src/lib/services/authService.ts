@@ -137,8 +137,12 @@ export class SupabaseAuthService implements IAuthService {
 
     if (!response.ok) {
       const errorMsg = data.error || "Signup failed.";
-      const error = new Error(errorMsg) as Error & { code?: string };
+      const error = new Error(data.message || errorMsg) as Error & { code?: string };
       if (response.status === 403) error.code = "owner_already_exists";
+      else if (response.status === 429 && data.error === "over_email_send_rate_limit") error.code = "over_email_send_rate_limit";
+      else if (data.error === "weak_password") error.code = "weak_password";
+      else if (data.error === "user_already_exists") error.code = "user_already_exists";
+      else if (data.error === "email_not_confirmed") error.code = "email_not_confirmed";
       throw error;
     }
 

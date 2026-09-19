@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { supabase } = await createSupabaseServerClient(request);
+    // Create Supabase server client manually to control error handling
+    let supabaseResponse: NextResponse = NextResponse.next({ request });
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
+          },
+        },
+      }
+    );
 
     // Check if an owner already exists (server-side enforcement)
     const { count: ownerCount, error: countError } = await supabase
@@ -43,9 +58,30 @@ export async function POST(request: NextRequest) {
     });
 
     if (signUpError) {
-      console.error("[signup] Auth error:", signUpError.code, signUpError.message, signUpError.status);
+      console.error("[signup] Auth error code:", signUpError.code);
+      console.error("[signup] Auth error message:", signUpError.message);
+      console.error("[signup] Auth error status:", signUpError.status);
+    }
+
+    if (signUpError) {
+      const errorCode = signUpError.code || "";
+
+      if (errorCode === "over_email_send_rate_limit") {
+        return NextResponse.json(
+          { error: "over_email_send_rate_limit", message: "Too many verification emails have been requested. Please wait a while and try again." },
+          { status: 429 }
+        );
+      }
+
+      if (errorCode === "over_request_rate_limit") {
+        return NextResponse.json(
+          { error: "over_request_rate_limit", message: "Too many requests were made. Please wait a few minutes and try again." },
+          { status: 429 }
+        );
+      }
+
       return NextResponse.json(
-        { error: signUpError.message || "Failed to create account." },
+        { error: errorCode || signUpError.message || "Failed to create account." },
         { status: signUpError.status || 400 }
       );
     }
@@ -58,7 +94,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the owner profile using the SECURITY DEFINER RPC function
-    // This bypasses RLS and handles agency lookup automatically
     const { error: rpcError } = await supabase.rpc("create_owner_profile", {
       user_email: email,
       target_agency_slug: "alpine-expeditions",
@@ -66,7 +101,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (rpcError) {
-      console.error("[signup] RPC error:", rpcError.code, rpcError.message, rpcError.details, rpcError.hint);
+      console.error("[signup] RPC error code:", rpcError.code);
+      console.error("[signup] RPC error message:", rpcError.message);
       return NextResponse.json(
         { error: "Failed to create profile. Please try again." },
         { status: 500 }
@@ -78,10 +114,14 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[signup] Unexpected error:", message);
+    // Re-throw in development to see the full stack trace
+    if (process.env.NODE_ENV === "development") {
+      throw err;
+    }
     return NextResponse.json(
-      { error: "We couldn't create your account. Please try again." },
+      { error: "Account creation failed. Please try again." },
       { status: 500 }
     );
   }
