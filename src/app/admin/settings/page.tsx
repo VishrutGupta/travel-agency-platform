@@ -26,7 +26,7 @@ export default function AdminSettingsPage() {
   const [website, setWebsite] = useState("");
 
   useEffect(() => {
-    authService.getAgency(DEFAULT_AGENCY_ID).then((data) => {
+    authService.getAgency(DEFAULT_AGENCY_ID).then((data: Agency) => {
       setAgency(data);
       setName(data.name);
       setTagline(data.tagline);
@@ -65,8 +65,8 @@ export default function AdminSettingsPage() {
       setAgency(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err.message || "Failed to update agency configuration.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update agency configuration.");
     } finally {
       setSaving(false);
     }

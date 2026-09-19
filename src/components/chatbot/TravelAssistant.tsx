@@ -12,6 +12,7 @@ import {
 import {
   AssistantChoice,
   AssistantUserAnswers,
+  Agency,
   ChatMessageItem,
   Trip,
 } from "@/lib/types";
@@ -37,7 +38,7 @@ export const TravelAssistant: React.FC = () => {
 
   // Initialize on mount
   useEffect(() => {
-    authService.getAgency().then((a) => {
+    authService.getAgency().then((a: Agency | null) => {
       if (a?.whatsapp) setAgencyWhatsApp(a.whatsapp);
     });
 

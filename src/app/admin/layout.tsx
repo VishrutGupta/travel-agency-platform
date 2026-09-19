@@ -23,7 +23,7 @@ export default function AdminLayout({
       return;
     }
 
-    authService.getCurrentUser().then((u) => {
+    authService.getCurrentUser().then((u: User | null) => {
       if (!u) {
         router.push("/admin/login");
       } else {

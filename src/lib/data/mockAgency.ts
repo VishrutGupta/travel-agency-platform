@@ -5,6 +5,7 @@ export const DEFAULT_AGENCY_ID = "agency_alpine_expeditions";
 export const mockAgency: Agency = {
   id: DEFAULT_AGENCY_ID,
   name: "Alpine & Co. Expeditions",
+  slug: "alpine-expeditions",
   tagline: "Curated Mountain Journeys & High-Altitude Exploration",
   logo: "🏔️",
   description:

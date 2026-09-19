@@ -3,6 +3,7 @@ export type AgencyRole = "owner" | "admin" | "agent";
 export interface Agency {
   id: string;
   name: string;
+  slug: string;
   tagline: string;
   logo: string;
   description: string;
@@ -127,4 +128,14 @@ export interface ChatMessageItem {
   isRelaxedSearch?: boolean;
   relaxationReason?: string;
   actionSuggestions?: { label: string; action: string }[];
+}
+
+export interface IAuthService {
+  getCurrentUser(): Promise<User | null>;
+  login(email: string, password: string): Promise<User>;
+  logout(): Promise<void>;
+  signup(email: string, password: string, fullName: string): Promise<User>;
+  googleLogin(): Promise<User>;
+  getAgency(agencyId?: string): Promise<Agency>;
+  updateAgency(agencyId: string, updateData: Partial<Agency>): Promise<Agency>;
 }

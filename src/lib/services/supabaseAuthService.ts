@@ -1,4 +1,4 @@
-import { type IAuthService } from "./authService";
+import { type IAuthService } from "@/lib/types";
 import { type Agency, type User } from "../types";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -79,6 +79,61 @@ export class SupabaseAuthService implements IAuthService {
       name:
         profile.full_name || data.user.email!.split("@")[0].replace(".", " "),
       role: profile.role || "owner",
+    };
+
+    return mappedUser;
+  }
+
+  async googleLogin(): Promise<User> {
+    const { data, error } = await this.supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {},
+    });
+    if (error) throw error;
+    if (!data.url) throw new Error("Google login failed - no redirect URL returned.");
+    throw data.url;
+  }
+
+  async signup(email: string, password: string, fullName: string): Promise<User> {
+    const { count, error: countError } = await this.supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true });
+
+    if (countError) throw countError;
+
+    if (count && count > 0) {
+      throw new Error("Owner account already exists. Please sign in.");
+    }
+
+    const { data, error: signUpError } = await this.supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (signUpError) throw signUpError;
+
+    if (!data.user) throw new Error("Sign up failed - no user returned.");
+
+    const { data: agency, error: agencyError } = await this.supabase
+      .from("agencies")
+      .select("*")
+      .eq("slug", "alpine-expeditions")
+      .single();
+
+    if (agencyError) throw agencyError;
+
+    const { error: profileError } = await this.supabase
+      .from("profiles")
+      .insert({ id: data.user.id, agency_id: agency.id, full_name: fullName, role: "owner" });
+
+    if (profileError) throw profileError;
+
+    const mappedUser: User = {
+      id: data.user.id,
+      agencyId: agency.id,
+      email: data.user.email!,
+      name: fullName,
+      role: "owner",
     };
 
     return mappedUser;
