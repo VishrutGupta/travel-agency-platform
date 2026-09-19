@@ -260,3 +260,22 @@ BEGIN
   RETURN target_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 10. SEED DEFAULT AGENCY
+INSERT INTO public.agencies (id, name, slug, email, whatsapp, phone)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Alpine & Co. Expeditions',
+  'alpine-expeditions',
+  'hello@alpine-expeditions.com',
+  '919820045120',
+  '+91 98200 45120'
+)
+ON CONFLICT (slug) DO NOTHING;
+
+-- 11. RLS INSERT POLICY FOR PROFILES
+-- Allows authenticated users to insert their own profile (for signup)
+CREATE POLICY "Authenticated users can insert own profile"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (id = auth.uid());

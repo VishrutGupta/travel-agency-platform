@@ -127,58 +127,30 @@ export class SupabaseAuthService implements IAuthService {
   }
 
   async signup(email: string, password: string, fullName: string): Promise<User> {
-    // Check if owner already exists - server-side enforcement
-    const { count, error: countError } = await this.supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true });
-
-    if (countError) throw countError;
-
-    if (count && count > 0) {
-      // Owner already exists, reject signup
-      throw new Error(
-        "Owner account already exists. Please sign in."
-      );
-    }
-
-    // Create the Supabase Auth user
-    const { data, error: signUpError } = await this.supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, fullName }),
     });
 
-    if (signUpError) throw signUpError;
+    const data = await response.json();
 
-    if (!data.user) {
+    if (!response.ok) {
+      const errorMsg = data.error || "Signup failed.";
+      const error = new Error(errorMsg) as Error & { code?: string };
+      if (response.status === 403) error.code = "owner_already_exists";
+      throw error;
+    }
+
+    const user = data.user;
+    if (!user) {
       throw new Error("Sign up failed - no user returned.");
     }
 
-    // Find the agency - use the default
-    const { data: agency, error: agencyError } = await this.supabase
-      .from("agencies")
-      .select("*")
-      .eq("slug", "alpine-expeditions")
-      .single();
-
-    if (agencyError) throw agencyError;
-
-    // Create the profile with owner role
-    const { error: profileError } = await this.supabase
-      .from("profiles")
-      .insert({
-        id: data.user.id,
-        agency_id: agency.id,
-        full_name: fullName,
-        role: "owner",
-      });
-
-    if (profileError) throw profileError;
-
     const mappedUser: User = {
-      id: data.user.id,
-      agencyId: agency.id,
-      email: data.user.email!,
+      id: user.id,
+      agencyId: "",
+      email: user.email!,
       name: fullName,
       role: "owner",
     };
@@ -344,10 +316,7 @@ class MockAuthService implements IAuthService {
     }
     return user;
   }
-
-  }
-
-/**
+}
 
 /**
  * Exported singleton.
