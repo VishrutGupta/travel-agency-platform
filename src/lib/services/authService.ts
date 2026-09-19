@@ -145,6 +145,7 @@ export class SupabaseAuthService implements IAuthService {
     const { data, error: signUpError } = await this.supabase.auth.signUp({
       email,
       password,
+      options: { data: { full_name: fullName } },
     });
 
     if (signUpError) throw signUpError;
