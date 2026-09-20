@@ -40,6 +40,15 @@ export async function POST(request: NextRequest) {
       details: lookupError.details,
       hint: lookupError.hint,
     });
+
+    if (lookupError.code === "PGRST202" || lookupError.message?.includes("Could not find the function")) {
+      console.error("[login] DIAGNOSIS: The lookup_auth_email_by_username function does not exist. Database migrations have not been applied.");
+      return NextResponse.json(
+        { error: "Database not configured. Please run the setup SQL in Supabase SQL Editor." },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Unable to sign in. Please contact the administrator." },
       { status: 500 }
@@ -106,8 +115,17 @@ export async function POST(request: NextRequest) {
       details: profileError?.details,
       hint: profileError?.hint,
     });
+
+    if (profileError?.code === "PGRST205" || profileError?.message?.includes("Could not find the table")) {
+      console.error("[login] DIAGNOSIS: The profiles table does not exist. Database migrations have not been applied.");
+      return NextResponse.json(
+        { error: "Database not configured. Please run the setup SQL in Supabase SQL Editor." },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Unable to sign in. Please contact the administrator." },
+      { error: "Your admin profile is not configured correctly. Please contact the administrator." },
       { status: 500 }
     );
   }
