@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   let supabaseResponse: NextResponse = NextResponse.next({ request });
+  const cookiesToReturn: { name: string; value: string; options?: Record<string, unknown> }[] = [];
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) => cookiesToReturn.push({ name, value, options }));
         },
       },
     }
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
     description: `User "${profile.username || username}" logged in successfully`,
   });
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       success: true,
       user: {
@@ -180,4 +182,10 @@ export async function POST(request: NextRequest) {
     },
     { status: 200 }
   );
+
+  cookiesToReturn.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options as any);
+  });
+
+  return response;
 }
