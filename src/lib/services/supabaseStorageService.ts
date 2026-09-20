@@ -1,10 +1,24 @@
 import { type IStorageService, type UploadResult } from "./storageService";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
-/**
- * Supabase-backed implementation of IStorageService.
- * Uploads images and PDFs to Supabase Storage buckets.
- */
+const ALLOWED_BROCHURE_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+]);
+
+const ALLOWED_BROCHURE_EXTENSIONS = new Set([
+  "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv",
+]);
+
+const MAX_BROCHURE_SIZE = 25 * 1024 * 1024;
+
 export class SupabaseStorageService implements IStorageService {
   private supabase: ReturnType<typeof createSupabaseClient>;
 
@@ -13,17 +27,14 @@ export class SupabaseStorageService implements IStorageService {
   }
 
   async uploadImage(file: File): Promise<UploadResult> {
-    // Validate file type
     const validTypes = ["image/jpeg", "image/png", "image/webp", "image/avif"];
     if (!validTypes.includes(file.type)) {
       throw new Error("Invalid image format. Please upload JPG, PNG, or WebP.");
     }
-    // Max 10MB
     if (file.size > 10 * 1024 * 1024) {
       throw new Error("Image file size exceeds 10MB limit.");
     }
 
-    // Upload to Supabase Storage
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 8)}.${fileExt}`;
     const filePath = `trip-images/${fileName}`;
@@ -37,7 +48,6 @@ export class SupabaseStorageService implements IStorageService {
 
     if (uploadError) throw uploadError;
 
-    // Get public URL
     const { data: urlData } = this.supabase.storage
       .from("trip-images")
       .getPublicUrl(filePath);
@@ -50,15 +60,14 @@ export class SupabaseStorageService implements IStorageService {
   }
 
   async uploadPdf(file: File): Promise<UploadResult> {
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      throw new Error("Invalid document format. Please upload a PDF file.");
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!ALLOWED_BROCHURE_TYPES.has(file.type) && !ALLOWED_BROCHURE_EXTENSIONS.has(ext)) {
+      throw new Error("Invalid document format. Please upload PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, or CSV.");
     }
-    // Max 25MB
-    if (file.size > 25 * 1024 * 1024) {
-      throw new Error("PDF file size exceeds 25MB limit.");
+    if (file.size > MAX_BROCHURE_SIZE) {
+      throw new Error("Document file size exceeds 25MB limit.");
     }
 
-    // Upload to Supabase Storage
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 8)}.${fileExt}`;
     const filePath = `trip-brochures/${fileName}`;
@@ -72,7 +81,6 @@ export class SupabaseStorageService implements IStorageService {
 
     if (uploadError) throw uploadError;
 
-    // Get public URL
     const { data: urlData } = this.supabase.storage
       .from("trip-brochures")
       .getPublicUrl(filePath);

@@ -13,12 +13,10 @@ export interface IStorageService {
 
 class MockStorageService implements IStorageService {
   async uploadImage(file: File): Promise<UploadResult> {
-    // Validate file type
     const validTypes = ["image/jpeg", "image/png", "image/webp", "image/avif"];
     if (!validTypes.includes(file.type)) {
       throw new Error("Invalid image format. Please upload JPG, PNG, or WebP.");
     }
-    // Max 10MB
     if (file.size > 10 * 1024 * 1024) {
       throw new Error("Image file size exceeds 10MB limit.");
     }
@@ -38,12 +36,13 @@ class MockStorageService implements IStorageService {
   }
 
   async uploadPdf(file: File): Promise<UploadResult> {
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      throw new Error("Invalid document format. Please upload a PDF file.");
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const allowedExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
+    if (!allowedExts.includes(ext)) {
+      throw new Error("Invalid document format. Please upload PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, or CSV.");
     }
-    // Max 25MB
     if (file.size > 25 * 1024 * 1024) {
-      throw new Error("PDF file size exceeds 25MB limit.");
+      throw new Error("Document file size exceeds 25MB limit.");
     }
 
     return new Promise((resolve, reject) => {
@@ -55,7 +54,7 @@ class MockStorageService implements IStorageService {
           size: file.size,
         });
       };
-      reader.onerror = () => reject(new Error("Failed to read PDF file."));
+      reader.onerror = () => reject(new Error("Failed to read document file."));
       reader.readAsDataURL(file);
     });
   }

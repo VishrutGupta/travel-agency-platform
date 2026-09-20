@@ -109,10 +109,26 @@ interface PdfUploaderProps {
   label?: string;
 }
 
+function getExtLabel(url: string): string {
+  const ext = url.split(".").pop()?.split("?")[0]?.toLowerCase() || "";
+  const labelMap: Record<string, string> = {
+    pdf: "PDF",
+    doc: "DOC",
+    docx: "DOCX",
+    ppt: "PPT",
+    pptx: "PPTX",
+    xls: "XLS",
+    xlsx: "XLSX",
+    txt: "TXT",
+    csv: "CSV",
+  };
+  return labelMap[ext] || "FILE";
+}
+
 export const PdfUploader: React.FC<PdfUploaderProps> = ({
   value,
   onChange,
-  label = "Brochure PDF",
+  label = "Brochure Document",
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -129,7 +145,7 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({
       const result = await storageService.uploadPdf(file);
       onChange(result.url);
     } catch (err: any) {
-      setError(err.message || "Failed to upload PDF.");
+      setError(err.message || "Failed to upload document.");
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -144,7 +160,7 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({
         <div className="max-w-sm p-4 rounded-2xl bg-white border border-[#E5E0D8] flex items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0">
-              PDF
+              {getExtLabel(value)}
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#1C1E21] truncate block">
@@ -185,10 +201,10 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({
             <FileText className="w-5 h-5 text-[#6B7280] mb-1.5" />
           )}
           <span className="text-xs font-semibold text-[#1C1E21]">
-            {loading ? "Uploading document..." : "Upload Brochure PDF"}
+            {loading ? "Uploading document..." : "Upload Brochure Document"}
           </span>
           <span className="text-[10px] text-[#6B7280]">
-            PDF documents up to 25MB
+            PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, CSV up to 25MB
           </span>
         </div>
       )}
@@ -204,7 +220,7 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept="application/pdf"
+        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
         className="hidden"
       />
     </div>
