@@ -125,7 +125,17 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Your admin profile is not configured correctly. Please contact the administrator." },
+      { error: "Your admin profile is not configured correctly. Please contact the administrator.",
+        _diagnostic: {
+          profileError: profileError ? {
+            code: profileError.code,
+            message: profileError.message,
+            details: profileError.details,
+            hint: profileError.hint,
+          } : null,
+          signInUserId: signInData.user.id,
+        },
+      },
       { status: 500 }
     );
   }

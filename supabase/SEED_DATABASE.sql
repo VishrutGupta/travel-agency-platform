@@ -156,14 +156,44 @@ ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
+-- 8a. SECURITY DEFINER HELPER FUNCTIONS (must be defined before RLS policies that use them)
+
+-- Checks if the current authenticated user has the 'owner' role.
+-- SECURITY DEFINER: runs as the function owner, bypasses RLS on profiles.
+-- auth.uid() still returns the JWT sub claim from the authenticated request.
+CREATE OR REPLACE FUNCTION public.is_current_user_owner()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'owner'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public;
+
+-- Returns the agency_id of the authenticated user.
+-- SECURITY DEFINER: runs as the function owner, bypasses RLS on profiles.
+CREATE OR REPLACE FUNCTION public.current_user_agency_id()
+RETURNS UUID AS $$
+BEGIN
+  RETURN (
+    SELECT agency_id FROM public.profiles
+    WHERE id = auth.uid()
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public;
+
 -- 9. AGENCIES RLS POLICIES
 CREATE POLICY "Public agencies are viewable by everyone"
   ON public.agencies FOR SELECT USING (true);
 
 CREATE POLICY "Owners can update their own agency"
   ON public.agencies FOR UPDATE TO authenticated
-  USING (id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()))
-  WITH CHECK (id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()));
+  USING (id = public.current_user_agency_id())
+  WITH CHECK (id = public.current_user_agency_id());
 
 -- 10. PROFILES RLS POLICIES
 CREATE POLICY "Users can view own profile"
@@ -182,13 +212,13 @@ CREATE POLICY "Authenticated users can insert own profile"
 CREATE POLICY "Only one owner profile allowed"
   ON public.profiles FOR INSERT TO authenticated
   WITH CHECK (
-    NOT EXISTS (SELECT 1 FROM public.profiles WHERE role = 'owner')
+    NOT public.is_current_user_owner()
     OR id = auth.uid()
   );
 
 CREATE POLICY "Owners can view all profiles"
   ON public.profiles FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner'));
+  USING (public.is_current_user_owner());
 
 -- 11. TRIPS RLS POLICIES
 CREATE POLICY "Active trips are viewable by everyone"
@@ -196,26 +226,26 @@ CREATE POLICY "Active trips are viewable by everyone"
 
 CREATE POLICY "Owners can view all trips of their agency"
   ON public.trips FOR SELECT TO authenticated
-  USING (agency_id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()));
+  USING (agency_id = public.current_user_agency_id());
 
 CREATE POLICY "Owners can insert trips for their agency"
   ON public.trips FOR INSERT TO authenticated
-  WITH CHECK (agency_id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()));
+  WITH CHECK (agency_id = public.current_user_agency_id());
 
 CREATE POLICY "Owners can update trips of their agency"
   ON public.trips FOR UPDATE TO authenticated
-  USING (agency_id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()))
-  WITH CHECK (agency_id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()));
+  USING (agency_id = public.current_user_agency_id())
+  WITH CHECK (agency_id = public.current_user_agency_id());
 
 CREATE POLICY "Owners can delete trips of their agency"
   ON public.trips FOR DELETE TO authenticated
-  USING (agency_id = (SELECT agency_id FROM public.profiles WHERE id = auth.uid()));
+  USING (agency_id = public.current_user_agency_id());
 
 -- 12. USER PERMISSIONS RLS POLICIES
 CREATE POLICY "Owner full access on user_permissions"
   ON public.user_permissions FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner'))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner'));
+  USING (public.is_current_user_owner())
+  WITH CHECK (public.is_current_user_owner());
 
 CREATE POLICY "Users can view own permissions"
   ON public.user_permissions FOR SELECT TO authenticated
@@ -224,8 +254,8 @@ CREATE POLICY "Users can view own permissions"
 -- 13. AUDIT LOGS RLS POLICIES
 CREATE POLICY "Owner full access on audit_logs"
   ON public.audit_logs FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner'))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner'));
+  USING (public.is_current_user_owner())
+  WITH CHECK (public.is_current_user_owner());
 
 CREATE POLICY "Users with logs.view can read audit_logs"
   ON public.audit_logs FOR SELECT TO authenticated
@@ -284,7 +314,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 16. PERMISSION CHECK FUNCTION
+-- 18. PERMISSION CHECK FUNCTION
 CREATE OR REPLACE FUNCTION public.user_has_permission(p_user_id UUID, p_permission TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -295,7 +325,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 17. GET USER PERMISSIONS FUNCTION
+-- 19. GET USER PERMISSIONS FUNCTION
 CREATE OR REPLACE FUNCTION public.get_user_permissions(p_user_id UUID)
 RETURNS SETOF TEXT AS $$
 BEGIN
@@ -314,7 +344,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 18. OWNER EXISTS CHECK
+-- 20. OWNER EXISTS CHECK
 CREATE OR REPLACE FUNCTION public.owner_exists()
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -322,7 +352,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 19. SEED DEFAULT AGENCY
+-- 21. SEED DEFAULT AGENCY
 INSERT INTO public.agencies (id, name, slug, email, whatsapp, phone)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
