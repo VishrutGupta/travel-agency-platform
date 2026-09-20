@@ -29,18 +29,27 @@ export async function POST(request: NextRequest) {
   );
 
   // Step 1: Look up the auth email from the username
+  console.log("[login] Step 1: Looking up auth email for username:", username.trim());
   const { data: authEmail, error: lookupError } = await supabase
     .rpc("lookup_auth_email_by_username", { p_username: username.trim() });
 
   if (lookupError) {
-    console.error("[login] Username lookup error:", lookupError.code, lookupError.message);
+    console.error("[login] Step 1 FAILED - Username lookup error:", {
+      code: lookupError.code,
+      message: lookupError.message,
+      details: lookupError.details,
+      hint: lookupError.hint,
+    });
     return NextResponse.json(
       { error: "Unable to sign in. Please contact the administrator." },
       { status: 500 }
     );
   }
 
+  console.log("[login] Step 1 result - authEmail:", authEmail ? "(found)" : "(null)");
+
   if (!authEmail) {
+    console.error("[login] Step 1 FAILED - No auth email found for username:", username.trim());
     return NextResponse.json(
       { error: "Invalid username or password." },
       { status: 401 }
@@ -48,13 +57,24 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 2: Sign in with Supabase Auth
+  console.log("[login] Step 2: Signing in with Supabase Auth...");
   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email: authEmail,
     password,
   });
 
   if (signInError) {
-    console.error("[login] Auth sign-in error:", signInError.code);
+    console.error("[login] Step 2 FAILED - Auth sign-in error:", {
+      code: signInError.code,
+      message: signInError.message,
+      status: signInError.status,
+    });
+    if (signInError.code === "email_not_confirmed") {
+      return NextResponse.json(
+        { error: "Please verify your email before signing in." },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
       { error: "Invalid username or password." },
       { status: 401 }
@@ -62,13 +82,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (!signInData.user) {
+    console.error("[login] Step 2 FAILED - signInWithPassword returned no user");
     return NextResponse.json(
       { error: "Unable to sign in. Please contact the administrator." },
       { status: 500 }
     );
   }
 
+  console.log("[login] Step 2 result - signInData.user.id:", signInData.user.id);
+
   // Step 3: Verify the profile exists
+  console.log("[login] Step 3: Looking up profile for user ID:", signInData.user.id);
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, agency_id, full_name, role, username, is_disabled")
@@ -76,12 +100,25 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (profileError || !profile) {
-    console.error("[login] Profile lookup error:", profileError?.code, profileError?.message);
+    console.error("[login] Step 3 FAILED - Profile lookup error:", {
+      code: profileError?.code,
+      message: profileError?.message,
+      details: profileError?.details,
+      hint: profileError?.hint,
+    });
     return NextResponse.json(
       { error: "Unable to sign in. Please contact the administrator." },
       { status: 500 }
     );
   }
+
+  console.log("[login] Step 3 result - profile:", {
+    id: profile.id,
+    agency_id: profile.agency_id,
+    role: profile.role,
+    username: profile.username,
+    is_disabled: profile.is_disabled,
+  });
 
   if (profile.is_disabled) {
     return NextResponse.json(
