@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Filter, ChevronLeft, ChevronRight, Eye, X } from "lucide-react";
+import { Search, Filter, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { AuditDetailModal } from "@/components/admin/AuditDetailModal";
 
 interface AuditLogEntry {
   id: string;
@@ -310,91 +311,11 @@ export default function AdminLogsPage() {
       </div>
 
       {detailLog && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setDetailLog(null)}>
-          <div className="bg-white rounded-3xl border border-[#E5E0D8] p-6 sm:p-8 w-full max-w-2xl shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-[#1C1E21]">Log Details</h2>
-              <button onClick={() => setDetailLog(null)} className="text-stone-400 hover:text-[#1C1E21]"><X className="w-5 h-5" /></button>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">User</span>
-                  <span className="text-xs font-semibold text-[#1C1E21]">{detailLog.actorUsername}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Action</span>
-                  <span className={`inline-flex items-center self-start px-2 py-0.5 rounded-full text-[10px] font-semibold ${ACTION_COLORS[detailLog.action] || "bg-stone-100 text-stone-600"}`}>
-                    {detailLog.action}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Resource</span>
-                  <span className="text-xs font-semibold text-[#1C1E21]">{detailLog.resourceType}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Timestamp</span>
-                  <span className="text-xs text-[#6B7280]">{formatDate(detailLog.createdAt)}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Description</span>
-                <span className="text-xs text-[#1C1E21]">{detailLog.description}</span>
-              </div>
-
-              {detailLog.resourceId && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Resource ID</span>
-                  <span className="text-xs font-mono text-[#1C1E21]">{detailLog.resourceId}</span>
-                </div>
-              )}
-
-              {detailLog.beforeData && Object.keys(detailLog.beforeData).length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Before</span>
-                  <pre className="p-4 rounded-xl bg-stone-50 border border-[#E5E0D8] text-[11px] font-mono text-[#1C1E21] overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(detailLog.beforeData, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {detailLog.afterData && Object.keys(detailLog.afterData).length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">After</span>
-                  <pre className="p-4 rounded-xl bg-stone-50 border border-[#E5E0D8] text-[11px] font-mono text-[#1C1E21] overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(detailLog.afterData, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {detailLog.metadata && Object.keys(detailLog.metadata).length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Metadata</span>
-                  <pre className="p-4 rounded-xl bg-stone-50 border border-[#E5E0D8] text-[11px] font-mono text-[#1C1E21] overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(detailLog.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {!detailLog.beforeData && !detailLog.afterData && !detailLog.metadata && (
-                <div className="p-4 rounded-xl bg-stone-50 border border-[#E5E0D8] text-xs text-[#6B7280] text-center">
-                  No additional data recorded for this event.
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setDetailLog(null)}
-                className="px-5 py-2 rounded-xl bg-[#1C1E21] hover:bg-[#2A3A4A] text-white text-xs font-semibold transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <AuditDetailModal
+          log={detailLog}
+          onClose={() => setDetailLog(null)}
+          formatDate={formatDate}
+        />
       )}
     </div>
   );
