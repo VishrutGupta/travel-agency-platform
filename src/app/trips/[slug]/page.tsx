@@ -42,7 +42,7 @@ export default function TripDetailsPage() {
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
-    tripService.getTripBySlug(agency?.id || "agency_alpine_expeditions", slug).then((res) => {
+    tripService.getTripBySlug(agency?.id || "alpine-expeditions", slug).then((res) => {
       setTrip(res);
       setLoading(false);
     });

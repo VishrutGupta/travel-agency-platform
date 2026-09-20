@@ -1,6 +1,6 @@
 import { Agency } from "../types";
 
-export const DEFAULT_AGENCY_ID = "agency_alpine_expeditions";
+export const DEFAULT_AGENCY_ID = "alpine-expeditions";
 
 export const mockAgency: Agency = {
   id: DEFAULT_AGENCY_ID,

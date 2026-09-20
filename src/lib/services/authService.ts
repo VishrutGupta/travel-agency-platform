@@ -1,6 +1,26 @@
 import { type IAuthService, type User, type Agency } from "@/lib/types";
 import { createBrowserClient } from "@supabase/ssr";
 
+function mapDbAgencyToAgency(row: Record<string, unknown>): Agency {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    slug: row.slug as string,
+    tagline: (row.tagline as string) || "",
+    logo: (row.logo as string) || "",
+    description: (row.description as string) || "",
+    phone: (row.phone as string) || "",
+    whatsapp: row.whatsapp as string,
+    email: row.email as string,
+    address: (row.address as string) || "",
+    instagram: (row.instagram_url as string) || "",
+    facebook: (row.facebook_url as string) || "",
+    website: (row.website_url as string) || "",
+    accentColor: (row.accent_color as string) || "#4B6B5B",
+    createdAt: row.created_at as string,
+  };
+}
+
 // Create a Supabase browser client for the client side
 export const createSupabaseBrowserClient = () =>
   createBrowserClient(
@@ -170,22 +190,36 @@ export class SupabaseAuthService implements IAuthService {
       .single();
 
     if (error) throw error;
-    return data as Agency;
+    return mapDbAgencyToAgency(data);
   }
 
   async updateAgency(agencyId: string, updateData: Partial<Agency>): Promise<Agency> {
+    const dbPayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updateData.name !== undefined) dbPayload.name = updateData.name;
+    if (updateData.tagline !== undefined) dbPayload.tagline = updateData.tagline;
+    if (updateData.description !== undefined) dbPayload.description = updateData.description;
+    if (updateData.phone !== undefined) dbPayload.phone = updateData.phone;
+    if (updateData.whatsapp !== undefined) dbPayload.whatsapp = updateData.whatsapp;
+    if (updateData.email !== undefined) dbPayload.email = updateData.email;
+    if (updateData.address !== undefined) dbPayload.address = updateData.address;
+    if (updateData.instagram !== undefined) dbPayload.instagram_url = updateData.instagram;
+    if (updateData.facebook !== undefined) dbPayload.facebook_url = updateData.facebook;
+    if (updateData.website !== undefined) dbPayload.website_url = updateData.website;
+    if (updateData.logo !== undefined) dbPayload.logo = updateData.logo;
+    if (updateData.accentColor !== undefined) dbPayload.accent_color = updateData.accentColor;
+
     const { data: updated, error } = await this.supabase
       .from("agencies")
-      .update({
-        ...updateData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", agencyId)
+      .update(dbPayload)
+      .eq("slug", agencyId)
       .select()
       .single();
 
     if (error) throw error;
-    return updated as Agency;
+    return mapDbAgencyToAgency(updated);
   }
 }
 

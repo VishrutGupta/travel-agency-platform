@@ -2,22 +2,79 @@ import { type ITripService } from "./tripService";
 import { type Trip, type TripFilter } from "../types";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
-/**
- * Supabase-backed implementation of ITripService.
- * All database queries use snake_case column names matching the Supabase schema.
- */
+function mapDbTripToTrip(row: Record<string, unknown>): Trip {
+  return {
+    id: row.id as string,
+    agencyId: row.agency_id as string,
+    slug: row.slug as string,
+    title: row.title as string,
+    destination: row.destination as string,
+    region: row.region as Trip["region"],
+    startDate: row.start_date as string,
+    endDate: row.end_date as string,
+    duration: row.duration as number,
+    nights: row.nights as number,
+    price: row.price as number,
+    originalPrice: (row.original_price as number) ?? undefined,
+    shortDescription: row.short_description as string,
+    description: row.description as string,
+    imageUrl: row.cover_image_url as string,
+    galleryUrls: (row.gallery_urls as string[]) ?? [],
+    brochureUrl: (row.brochure_url as string) ?? undefined,
+    tripType: row.trip_type as Trip["tripType"],
+    experience: row.experience as Trip["experience"],
+    difficulty: row.difficulty as Trip["difficulty"],
+    familyFriendly: row.family_friendly as boolean,
+    featured: row.featured as boolean,
+    isActive: row.is_active as boolean,
+    highlights: (row.highlights as string[]) ?? [],
+    inclusions: (row.inclusions as string[]) ?? [],
+    exclusions: (row.exclusions as string[]) ?? [],
+    itinerary: (row.itinerary as Trip["itinerary"]) ?? [],
+    importantInfo: (row.important_info as string[]) ?? [],
+    maxGroupSize: (row.max_group_size as number) ?? undefined,
+    whatsappNumber: (row.whatsapp_number as string) ?? undefined,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
 export class SupabaseTripService implements ITripService {
   private supabase: ReturnType<typeof createSupabaseClient>;
+  private agencyUuidCache: Map<string, string> = new Map();
 
   constructor() {
     this.supabase = createSupabaseClient();
+  }
+
+  private async resolveAgencyUuid(agencyId: string): Promise<string> {
+    if (!agencyId) return agencyId;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agencyId)) {
+      return agencyId;
+    }
+    const cached = this.agencyUuidCache.get(agencyId);
+    if (cached) return cached;
+
+    const { data, error } = await this.supabase
+      .from("agencies")
+      .select("id")
+      .eq("slug", agencyId)
+      .single();
+
+    if (error || !data) {
+      throw new Error(`Agency not found for slug: ${agencyId}`);
+    }
+
+    this.agencyUuidCache.set(agencyId, data.id);
+    return data.id;
   }
 
   async getTrips(agencyId?: string, includeInactive = false): Promise<Trip[]> {
     let query = this.supabase.from("trips").select("*");
 
     if (agencyId) {
-      query = query.eq("agency_id", agencyId);
+      const uuid = await this.resolveAgencyUuid(agencyId);
+      query = query.eq("agency_id", uuid);
     }
 
     if (!includeInactive) {
@@ -27,33 +84,35 @@ export class SupabaseTripService implements ITripService {
     const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return (data as Trip[]) || [];
+    return (data || []).map(mapDbTripToTrip);
   }
 
   async getTripBySlug(agencyId?: string, slug?: string): Promise<Trip | null> {
     let query = this.supabase.from("trips").select("*").eq("slug", slug);
 
     if (agencyId) {
-      query = query.eq("agency_id", agencyId);
+      const uuid = await this.resolveAgencyUuid(agencyId);
+      query = query.eq("agency_id", uuid);
     }
 
     const { data, error } = await query.single();
 
     if (error) return null;
-    return (data as Trip) || null;
+    return data ? mapDbTripToTrip(data) : null;
   }
 
   async getTripById(agencyId?: string, id?: string): Promise<Trip | null> {
     let query = this.supabase.from("trips").select("*").eq("id", id);
 
     if (agencyId) {
-      query = query.eq("agency_id", agencyId);
+      const uuid = await this.resolveAgencyUuid(agencyId);
+      query = query.eq("agency_id", uuid);
     }
 
     const { data, error } = await query.single();
 
     if (error) return null;
-    return (data as Trip) || null;
+    return data ? mapDbTripToTrip(data) : null;
   }
 
   async getFeaturedTrips(agencyId?: string): Promise<Trip[]> {
@@ -64,20 +123,22 @@ export class SupabaseTripService implements ITripService {
       .eq("featured", true);
 
     if (agencyId) {
-      query = query.eq("agency_id", agencyId);
+      const uuid = await this.resolveAgencyUuid(agencyId);
+      query = query.eq("agency_id", uuid);
     }
 
     const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return (data as Trip[]) || [];
+    return (data || []).map(mapDbTripToTrip);
   }
 
   async getDestinations(agencyId?: string): Promise<string[]> {
     let query = this.supabase.from("trips").select("destination");
 
     if (agencyId) {
-      query = query.eq("agency_id", agencyId);
+      const uuid = await this.resolveAgencyUuid(agencyId);
+      query = query.eq("agency_id", uuid);
     }
 
     const { data, error } = await query;
@@ -92,13 +153,12 @@ export class SupabaseTripService implements ITripService {
     let query = this.supabase.from("trips").select("*");
 
     if (agencyId) {
-      query = query.eq("agency_id", agencyId);
+      const uuid = await this.resolveAgencyUuid(agencyId);
+      query = query.eq("agency_id", uuid);
     }
 
-    // Only expose active public trips
     query = query.eq("is_active", true);
 
-    // Apply filters
     if (filters.destination && filters.destination !== "all") {
       const d = filters.destination.toLowerCase();
       query = query.or(`destination.ilike.%${d}%,title.ilike.%${d}%,region.ilike.%${d}%`);
@@ -177,18 +237,19 @@ export class SupabaseTripService implements ITripService {
     const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return (data as Trip[]) || [];
+    return (data || []).map(mapDbTripToTrip);
   }
 
   async createTrip(
     agencyId: string,
     tripData: Omit<Trip, "id" | "agencyId" | "createdAt" | "updatedAt">
   ): Promise<Trip> {
-    // Use a distinct variable name to avoid duplicate 'data' identifier
+    const uuid = await this.resolveAgencyUuid(agencyId);
+
     const { data: insertedTrip, error: insertError } = await this.supabase
       .from("trips")
       .insert({
-        agency_id: agencyId,
+        agency_id: uuid,
         title: tripData.title,
         slug: tripData.slug,
         destination: tripData.destination,
@@ -222,10 +283,12 @@ export class SupabaseTripService implements ITripService {
       .single();
 
     if (insertError) throw insertError;
-    return insertedTrip as Trip;
+    return mapDbTripToTrip(insertedTrip);
   }
 
   async updateTrip(agencyId: string, id: string, tripData: Partial<Trip>): Promise<Trip> {
+    const uuid = await this.resolveAgencyUuid(agencyId);
+
     const updatePayload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -259,32 +322,32 @@ export class SupabaseTripService implements ITripService {
     if (tripData.maxGroupSize !== undefined) updatePayload.max_group_size = tripData.maxGroupSize;
     if (tripData.whatsappNumber !== undefined) updatePayload.whatsapp_number = tripData.whatsappNumber;
 
-    // Use a distinct variable name to avoid duplicate 'data' identifier
     const { data: updatedTrip, error: updateError } = await this.supabase
       .from("trips")
       .update(updatePayload)
       .eq("id", id)
-      .eq("agency_id", agencyId)
+      .eq("agency_id", uuid)
       .select()
       .single();
 
     if (updateError) throw updateError;
-    return updatedTrip as Trip;
+    return mapDbTripToTrip(updatedTrip);
   }
 
   async deleteTrip(agencyId: string, id: string): Promise<boolean> {
+    const uuid = await this.resolveAgencyUuid(agencyId);
+
     const { error } = await this.supabase
       .from("trips")
       .delete()
       .eq("id", id)
-      .eq("agency_id", agencyId);
+      .eq("agency_id", uuid);
 
     if (error) throw error;
     return true;
   }
 
   async toggleTripStatus(agencyId: string, id: string): Promise<Trip> {
-    // First get the current trip status
     const { data: currentTrip, error: fetchError } = await this.supabase
       .from("trips")
       .select("is_active")
@@ -305,6 +368,6 @@ export class SupabaseTripService implements ITripService {
       .single();
 
     if (toggleError) throw toggleError;
-    return toggledTrip as Trip;
+    return mapDbTripToTrip(toggledTrip);
   }
 }

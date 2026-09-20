@@ -28,24 +28,24 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Check if an owner already exists (server-side enforcement)
+    // Check if an owner already exists
     const { count: ownerCount, error: countError } = await supabase
       .from("profiles")
       .select("*", { count: "exact", head: true })
       .eq("role", "owner");
 
     if (countError) {
-      console.error("[signup] Owner check error:", countError.code, countError.message);
+      console.error("[bootstrap] Owner check error:", countError.code, countError.message);
       return NextResponse.json(
-        { error: "Unable to verify account status. Please try again." },
+        { error: "Unable to verify account status." },
         { status: 500 }
       );
     }
 
     if (ownerCount && ownerCount > 0) {
       return NextResponse.json(
-        { error: "An owner account already exists. Please sign in." },
-        { status: 403 }
+        { error: "An owner account already exists. Bootstrap not needed." },
+        { status: 409 }
       );
     }
 
@@ -57,24 +57,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (signUpError) {
-      console.error("[signup] Auth error code:", signUpError.code);
-      console.error("[signup] Auth error message:", signUpError.message);
-      console.error("[signup] Auth error status:", signUpError.status);
-
-      if (signUpError.code === "over_email_send_rate_limit") {
-        return NextResponse.json(
-          { error: "over_email_send_rate_limit", message: "Too many verification emails have been requested. Please wait a while and try again." },
-          { status: 429 }
-        );
-      }
-
-      if (signUpError.code === "over_request_rate_limit") {
-        return NextResponse.json(
-          { error: "over_request_rate_limit", message: "Too many requests were made. Please wait a few minutes and try again." },
-          { status: 429 }
-        );
-      }
-
+      console.error("[bootstrap] Auth error:", signUpError.code, signUpError.message);
       return NextResponse.json(
         { error: signUpError.code || signUpError.message || "Failed to create account." },
         { status: signUpError.status || 400 }
@@ -88,23 +71,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Set the session so auth.uid() works for subsequent operations
+    // Set the session
     if (signUpData.session) {
       const { error: setSessionError } = await supabase.auth.setSession({
         access_token: signUpData.session.access_token,
         refresh_token: signUpData.session.refresh_token,
       });
       if (setSessionError) {
-        console.error("[signup] setSession error:", setSessionError.message);
+        console.error("[bootstrap] setSession error:", setSessionError.message);
       }
     }
 
-    // Verify the user is authenticated
+    // Get the authenticated user
     const { data: { user: authUser }, error: getUserError } = await supabase.auth.getUser();
     const profileUserId = authUser?.id || signUpData.user.id;
 
     if (getUserError) {
-      console.error("[signup] getUser error:", getUserError.message);
+      console.error("[bootstrap] getUser error:", getUserError.message);
     }
 
     // Create the default agency if it doesn't exist
@@ -119,7 +102,6 @@ export async function POST(request: NextRequest) {
     if (!agencyError && agency) {
       agencyId = agency.id;
     } else {
-      // Agency doesn't exist - create it
       const { data: newAgency, error: createAgencyError } = await supabase
         .from("agencies")
         .insert({
@@ -133,9 +115,9 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (createAgencyError) {
-        console.error("[signup] Agency create error:", createAgencyError.code, createAgencyError.message);
+        console.error("[bootstrap] Agency create error:", createAgencyError.code, createAgencyError.message);
         return NextResponse.json(
-          { error: "Unable to set up agency. Please contact support." },
+          { error: "Unable to set up agency." },
           { status: 500 }
         );
       }
@@ -153,25 +135,33 @@ export async function POST(request: NextRequest) {
       });
 
     if (profileError) {
-      console.error("[signup] Profile insert error:", profileError.code, profileError.message, profileError.details);
+      console.error("[bootstrap] Profile insert error:", profileError.code, profileError.message);
       return NextResponse.json(
-        { error: "Unable to create your owner profile. Please try again." },
+        { error: "Unable to create your owner profile." },
         { status: 500 }
       );
     }
 
     return NextResponse.json(
-      { success: true, user: signUpData.user, requiresEmailConfirmation: !signUpData.session },
+      {
+        success: true,
+        user: {
+          id: signUpData.user.id,
+          email: signUpData.user.email,
+          full_name: fullName,
+        },
+        requiresEmailConfirmation: !signUpData.session,
+      },
       { status: 201 }
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[signup] Unexpected error:", message);
+    console.error("[bootstrap] Unexpected error:", message);
     if (process.env.NODE_ENV === "development") {
       throw err;
     }
     return NextResponse.json(
-      { error: "Account creation failed. Please try again." },
+      { error: "Bootstrap failed. Please try again." },
       { status: 500 }
     );
   }
