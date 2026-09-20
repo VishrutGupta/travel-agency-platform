@@ -3,18 +3,25 @@ import { getAuthUser, createClient, hasPermission } from "@/lib/server/authoriza
 import { auditLog } from "@/lib/server/auditLog";
 
 export async function POST(request: NextRequest) {
+  console.log("[TRIP CREATE] START");
+
   const user = await getAuthUser(request);
   if (!user) {
+    console.log("[TRIP CREATE] FAILED: Unauthorized - getAuthUser returned null");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  console.log("[TRIP CREATE] Auth OK: user=", user.username, "role=", user.role, "agencyId=", user.agencyId);
+
   if (!hasPermission(user, "trips.create")) {
+    console.log("[TRIP CREATE] FAILED: Forbidden - no trips.create permission");
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { supabase } = createClient(request);
   const body = await request.json();
 
+  console.log("[TRIP CREATE] DB INSERT START");
   const { data: trip, error } = await supabase
     .from("trips")
     .insert({
@@ -52,10 +59,14 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    console.log("[TRIP CREATE] FAILED: DB insert error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await auditLog({
+  console.log("[TRIP CREATE] DB SUCCESS: trip.id=", trip.id, "trip.title=", trip.title);
+
+  console.log("[TRIP CREATE] AUDIT START");
+  const auditSuccess = await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
@@ -83,6 +94,8 @@ export async function POST(request: NextRequest) {
       featured: trip.featured,
     },
   });
+  console.log("[TRIP CREATE] AUDIT RESULT:", auditSuccess ? "SUCCESS" : "FAILED");
 
+  console.log("[TRIP CREATE] DONE - returning 201");
   return NextResponse.json({ trip }, { status: 201 });
 }

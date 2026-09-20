@@ -36,12 +36,18 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  console.log("[TRIP UPDATE] START");
+
   const user = await getAuthUser(request);
   if (!user) {
+    console.log("[TRIP UPDATE] FAILED: Unauthorized");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  console.log("[TRIP UPDATE] Auth OK: user=", user.username, "role=", user.role, "agencyId=", user.agencyId);
+
   if (!hasPermission(user, "trips.edit")) {
+    console.log("[TRIP UPDATE] FAILED: Forbidden");
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -49,6 +55,7 @@ export async function PUT(
   const { supabase } = createClient(request);
   const body = await request.json();
 
+  console.log("[TRIP UPDATE] Fetching before trip state");
   const { data: beforeTrip } = await supabase
     .from("trips")
     .select("*")
@@ -88,6 +95,7 @@ export async function PUT(
   if (body.maxGroupSize !== undefined) updatePayload.max_group_size = body.maxGroupSize;
   if (body.whatsappNumber !== undefined) updatePayload.whatsapp_number = body.whatsappNumber;
 
+  console.log("[TRIP UPDATE] DB UPDATE START, id=", id);
   const { data: trip, error } = await supabase
     .from("trips")
     .update(updatePayload)
@@ -96,10 +104,14 @@ export async function PUT(
     .single();
 
   if (error) {
+    console.log("[TRIP UPDATE] FAILED: DB update error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await auditLog({
+  console.log("[TRIP UPDATE] DB SUCCESS: trip.id=", trip.id);
+
+  console.log("[TRIP UPDATE] AUDIT START");
+  const auditSuccess = await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
@@ -145,7 +157,9 @@ export async function PUT(
       featured: trip.featured,
     },
   });
+  console.log("[TRIP UPDATE] AUDIT RESULT:", auditSuccess ? "SUCCESS" : "FAILED");
 
+  console.log("[TRIP UPDATE] DONE - returning 200");
   return NextResponse.json({ trip });
 }
 
@@ -153,34 +167,46 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  console.log("[TRIP DELETE] START");
+
   const user = await getAuthUser(request);
   if (!user) {
+    console.log("[TRIP DELETE] FAILED: Unauthorized");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  console.log("[TRIP DELETE] Auth OK: user=", user.username, "role=", user.role, "agencyId=", user.agencyId);
+
   if (!hasPermission(user, "trips.delete")) {
+    console.log("[TRIP DELETE] FAILED: Forbidden");
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
   const { supabase } = createClient(request);
 
+  console.log("[TRIP DELETE] Fetching before trip state");
   const { data: beforeTrip } = await supabase
     .from("trips")
     .select("*")
     .eq("id", id)
     .single();
 
+  console.log("[TRIP DELETE] DB DELETE START, id=", id);
   const { error } = await supabase
     .from("trips")
     .delete()
     .eq("id", id);
 
   if (error) {
+    console.log("[TRIP DELETE] FAILED: DB delete error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await auditLog({
+  console.log("[TRIP DELETE] DB SUCCESS");
+
+  console.log("[TRIP DELETE] AUDIT START");
+  const auditSuccess = await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
@@ -208,6 +234,8 @@ export async function DELETE(
       featured: beforeTrip.featured,
     } : null,
   });
+  console.log("[TRIP DELETE] AUDIT RESULT:", auditSuccess ? "SUCCESS" : "FAILED");
 
+  console.log("[TRIP DELETE] DONE - returning 200");
   return NextResponse.json({ success: true });
 }

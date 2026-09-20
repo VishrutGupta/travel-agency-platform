@@ -14,7 +14,7 @@ export interface AuditLogParams {
   metadata?: Record<string, unknown> | null;
 }
 
-export async function auditLog(params: AuditLogParams): Promise<void> {
+export async function auditLog(params: AuditLogParams): Promise<boolean> {
   const {
     supabase,
     agencyId,
@@ -29,7 +29,9 @@ export async function auditLog(params: AuditLogParams): Promise<void> {
     metadata,
   } = params;
 
-  const { error } = await supabase.from("audit_logs").insert({
+  console.log(`[audit] INSERT START: action=${action} resource=${resourceType} resourceId=${resourceId || "none"}`);
+
+  const { data, error } = await supabase.from("audit_logs").insert({
     agency_id: agencyId,
     actor_user_id: actorUserId,
     actor_username: actorUsername,
@@ -40,9 +42,22 @@ export async function auditLog(params: AuditLogParams): Promise<void> {
     before_data: beforeData || null,
     after_data: afterData || null,
     metadata: metadata || null,
-  });
+  }).select("id").single();
 
   if (error) {
-    console.error("[audit] Failed to write audit log:", error.code, error.message);
+    console.error("[audit] INSERT FAILED:", JSON.stringify({
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      action,
+      resourceType,
+      agencyId,
+      actorUserId,
+    }));
+    return false;
   }
+
+  console.log(`[audit] INSERT SUCCESS: id=${data?.id} action=${action}`);
+  return true;
 }
