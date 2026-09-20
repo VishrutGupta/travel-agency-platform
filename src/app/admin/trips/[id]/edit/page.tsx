@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { TripForm } from "@/components/admin/TripForm";
-import { tripService } from "@/lib/services/tripService";
-import { DEFAULT_AGENCY_ID } from "@/lib/data/mockAgency";
 import { Trip } from "@/lib/types";
 
 export default function AdminEditTripPage() {
@@ -15,15 +13,29 @@ export default function AdminEditTripPage() {
 
   useEffect(() => {
     if (!tripId) return;
-    tripService.getTripById(DEFAULT_AGENCY_ID, tripId).then((t) => {
-      setTrip(t);
-      setLoading(false);
-    });
+    fetch(`/api/admin/trips/${tripId}`)
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.trip || null;
+      })
+      .then((t) => {
+        setTrip(t);
+        setLoading(false);
+      });
   }, [tripId]);
 
   const handleUpdate = async (data: any) => {
     if (!trip) return;
-    await tripService.updateTrip(DEFAULT_AGENCY_ID, trip.id, data);
+    const res = await fetch(`/api/admin/trips/${trip.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Failed to update trip" }));
+      throw new Error(err.error || "Failed to update trip");
+    }
   };
 
   if (loading) {

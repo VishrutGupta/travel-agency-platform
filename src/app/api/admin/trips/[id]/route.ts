@@ -2,6 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, createClient, hasPermission } from "@/lib/server/authorization";
 import { auditLog } from "@/lib/server/auditLog";
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!hasPermission(user, "trips.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const { supabase } = createClient(request);
+
+  const { data: trip, error } = await supabase
+    .from("trips")
+    .select("*")
+    .eq("id", id)
+    .eq("agency_id", user.agencyId)
+    .single();
+
+  if (error || !trip) {
+    return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ trip });
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -11,7 +41,7 @@ export async function PUT(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!await hasPermission(user, "trips.edit")) {
+  if (!hasPermission(user, "trips.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -21,7 +51,7 @@ export async function PUT(
 
   const { data: beforeTrip } = await supabase
     .from("trips")
-    .select("title, destination, price, is_active, featured")
+    .select("*")
     .eq("id", id)
     .single();
 
@@ -74,12 +104,46 @@ export async function PUT(
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "UPDATE",
-    resourceType: "Trip",
+    action: "trip.update",
+    resourceType: "trip",
     resourceId: id,
-    description: `Updated trip "${body.title || beforeTrip?.title || id}"`,
-    beforeData: beforeTrip || undefined,
-    afterData: { title: trip.title, destination: trip.destination, price: trip.price, is_active: trip.is_active },
+    description: `Updated trip "${trip.title}"`,
+    beforeData: beforeTrip ? {
+      id: beforeTrip.id,
+      title: beforeTrip.title,
+      slug: beforeTrip.slug,
+      destination: beforeTrip.destination,
+      region: beforeTrip.region,
+      start_date: beforeTrip.start_date,
+      end_date: beforeTrip.end_date,
+      duration: beforeTrip.duration,
+      nights: beforeTrip.nights,
+      price: beforeTrip.price,
+      original_price: beforeTrip.original_price,
+      trip_type: beforeTrip.trip_type,
+      experience: beforeTrip.experience,
+      difficulty: beforeTrip.difficulty,
+      is_active: beforeTrip.is_active,
+      featured: beforeTrip.featured,
+    } : null,
+    afterData: {
+      id: trip.id,
+      title: trip.title,
+      slug: trip.slug,
+      destination: trip.destination,
+      region: trip.region,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      duration: trip.duration,
+      nights: trip.nights,
+      price: trip.price,
+      original_price: trip.original_price,
+      trip_type: trip.trip_type,
+      experience: trip.experience,
+      difficulty: trip.difficulty,
+      is_active: trip.is_active,
+      featured: trip.featured,
+    },
   });
 
   return NextResponse.json({ trip });
@@ -94,7 +158,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!await hasPermission(user, "trips.delete")) {
+  if (!hasPermission(user, "trips.delete")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -103,7 +167,7 @@ export async function DELETE(
 
   const { data: beforeTrip } = await supabase
     .from("trips")
-    .select("title, destination, price")
+    .select("*")
     .eq("id", id)
     .single();
 
@@ -121,11 +185,28 @@ export async function DELETE(
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "DELETE",
-    resourceType: "Trip",
+    action: "trip.delete",
+    resourceType: "trip",
     resourceId: id,
     description: `Deleted trip "${beforeTrip?.title || id}"`,
-    beforeData: beforeTrip || undefined,
+    beforeData: beforeTrip ? {
+      id: beforeTrip.id,
+      title: beforeTrip.title,
+      slug: beforeTrip.slug,
+      destination: beforeTrip.destination,
+      region: beforeTrip.region,
+      start_date: beforeTrip.start_date,
+      end_date: beforeTrip.end_date,
+      duration: beforeTrip.duration,
+      nights: beforeTrip.nights,
+      price: beforeTrip.price,
+      original_price: beforeTrip.original_price,
+      trip_type: beforeTrip.trip_type,
+      experience: beforeTrip.experience,
+      difficulty: beforeTrip.difficulty,
+      is_active: beforeTrip.is_active,
+      featured: beforeTrip.featured,
+    } : null,
   });
 
   return NextResponse.json({ success: true });

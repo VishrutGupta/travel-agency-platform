@@ -2,12 +2,18 @@
 
 import React from "react";
 import { TripForm } from "@/components/admin/TripForm";
-import { tripService } from "@/lib/services/tripService";
-import { DEFAULT_AGENCY_ID } from "@/lib/data/mockAgency";
 
 export default function AdminNewTripPage() {
   const handleCreate = async (data: any) => {
-    await tripService.createTrip(DEFAULT_AGENCY_ID, data);
+    const res = await fetch("/api/admin/trips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Failed to create trip" }));
+      throw new Error(err.error || "Failed to create trip");
+    }
   };
 
   return (

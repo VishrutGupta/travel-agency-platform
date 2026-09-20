@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!await hasPermission(user, "trips.create")) {
+  if (!hasPermission(user, "trips.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -60,11 +60,28 @@ export async function POST(request: NextRequest) {
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "CREATE",
-    resourceType: "Trip",
+    action: "trip.create",
+    resourceType: "trip",
     resourceId: trip.id,
-    description: `Created trip "${body.title}"`,
-    afterData: { title: body.title, destination: body.destination, price: body.price },
+    description: `Created trip "${trip.title}"`,
+    afterData: {
+      id: trip.id,
+      title: trip.title,
+      slug: trip.slug,
+      destination: trip.destination,
+      region: trip.region,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      duration: trip.duration,
+      nights: trip.nights,
+      price: trip.price,
+      original_price: trip.original_price,
+      trip_type: trip.trip_type,
+      experience: trip.experience,
+      difficulty: trip.difficulty,
+      is_active: trip.is_active,
+      featured: trip.featured,
+    },
   });
 
   return NextResponse.json({ trip }, { status: 201 });

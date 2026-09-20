@@ -37,14 +37,18 @@ export default function AdminTripsPage() {
   }, []);
 
   const handleToggleStatus = async (trip: Trip) => {
-    await tripService.toggleTripStatus(trip.agencyId, trip.id);
-    fetchTrips();
+    const res = await fetch(`/api/admin/trips/${trip.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !trip.isActive }),
+    });
+    if (res.ok) fetchTrips();
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    await tripService.deleteTrip(deleteTarget.agencyId, deleteTarget.id);
+    await fetch(`/api/admin/trips/${deleteTarget.id}`, { method: "DELETE" });
     setDeleting(false);
     setDeleteTarget(null);
     fetchTrips();
