@@ -21,23 +21,17 @@ function mapDbAgencyToAgency(row: Record<string, unknown>): Agency {
   };
 }
 
-// Create a Supabase browser client for the client side
 export const createSupabaseBrowserClient = () =>
   createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-// Helper to check if Supabase is configured
 const hasSupabase =
   typeof process !== "undefined" &&
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-/**
- * Supabase-backed implementation of IAuthService.
- * Uses the browser Supabase client for auth operations with real Supabase Auth.
- */
 export class SupabaseAuthService implements IAuthService {
   private supabase = createSupabaseBrowserClient();
 
@@ -56,7 +50,6 @@ export class SupabaseAuthService implements IAuthService {
       return null;
     }
 
-    // Fetch the profile from the profiles table to get agency_id and role
     const { data: profile, error: profileError } = await this.supabase
       .from("profiles")
       .select("*")
@@ -65,7 +58,6 @@ export class SupabaseAuthService implements IAuthService {
 
     if (profileError) {
       console.error("Profile fetch error:", profileError);
-      // Return basic user info if profile not found
       return {
         id: user.id,
         agencyId: "",
@@ -75,48 +67,30 @@ export class SupabaseAuthService implements IAuthService {
       };
     }
 
-    const mappedUser: User = {
+    return {
       id: profile.id,
       agencyId: profile.agency_id,
       email: user.email!,
       name: profile.full_name || user.email!.split("@")[0].replace(".", " "),
       role: profile.role || "owner",
+      username: profile.username,
     };
-
-    return mappedUser;
   }
 
-  async login(email: string, password: string): Promise<User> {
-    const { data, error } = await this.supabase.auth.signInWithPassword({
-      email,
-      password,
+  async login(username: string, password: string): Promise<User> {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
     });
 
-    if (error) throw error;
+    const data = await response.json();
 
-    if (!data.user) {
-      throw new Error("Login failed - no user returned.");
+    if (!response.ok) {
+      throw new Error(data.error || "Invalid username or password.");
     }
 
-    // Fetch the profile
-    const { data: profile, error: profileError } = await this.supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", data.user.id)
-      .single();
-
-    if (profileError) throw profileError;
-
-    const mappedUser: User = {
-      id: profile.id,
-      agencyId: profile.agency_id,
-      email: profile.email || data.user.email!,
-      name:
-        profile.full_name || data.user.email!.split("@")[0].replace(".", " "),
-      role: profile.role || "owner",
-    };
-
-    return mappedUser;
+    return data.user as User;
   }
 
   async logout(): Promise<void> {
@@ -124,19 +98,28 @@ export class SupabaseAuthService implements IAuthService {
     if (error) throw error;
   }
 
-  async forgotPassword(email: string): Promise<void> {
-    const { error } = await this.supabase.auth.resetPasswordForEmail(email);
-    if (error) throw error;
+  async forgotPassword(username: string): Promise<void> {
+    const response = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to send reset link.");
+    }
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<void> {
+  async resetPassword(_token: string, newPassword: string): Promise<void> {
     const { error } = await this.supabase.auth.updateUser({
       password: newPassword,
     });
     if (error) throw error;
   }
 
-  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(_currentPassword: string, newPassword: string): Promise<void> {
     const { data: { user } } = await this.supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated.");
 
@@ -146,11 +129,11 @@ export class SupabaseAuthService implements IAuthService {
     if (error) throw error;
   }
 
-  async signup(email: string, password: string, fullName: string): Promise<User> {
+  async signup(email: string, password: string, fullName: string, username: string): Promise<User> {
     const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, fullName }),
+      body: JSON.stringify({ email, password, fullName, username }),
     });
 
     const data = await response.json();
@@ -171,15 +154,14 @@ export class SupabaseAuthService implements IAuthService {
       throw new Error("Sign up failed - no user returned.");
     }
 
-    const mappedUser: User = {
+    return {
       id: user.id,
       agencyId: "",
       email: user.email!,
       name: fullName,
       role: "owner",
+      username,
     };
-
-    return mappedUser;
   }
 
   async getAgency(agencyId?: string): Promise<Agency> {
@@ -223,17 +205,12 @@ export class SupabaseAuthService implements IAuthService {
   }
 }
 
-/**
- * MockAuthService: Fallback for local development without Supabase credentials.
- * Uses localStorage for state (same as before but adapted for IAuthService).
- */
 class MockAuthService implements IAuthService {
   private currentUser: User | null = null;
   private isInitialized = false;
 
   private init() {
     if (this.isInitialized) return;
-
     if (typeof window !== "undefined") {
       try {
         const storedUser = localStorage.getItem("alpine_auth_user_v1");
@@ -252,12 +229,10 @@ class MockAuthService implements IAuthService {
     return this.currentUser;
   }
 
-  async login(email: string, password: string): Promise<User> {
+  async login(username: string, password: string): Promise<User> {
     this.init();
-    // Clean mock verification
-    const normalized = email.trim().toLowerCase();
-    if (!normalized.includes("@")) {
-      throw new Error("Please enter a valid email address.");
+    if (!username.trim()) {
+      throw new Error("Username is required.");
     }
     if (password.length < 4) {
       throw new Error("Password must be at least 4 characters.");
@@ -266,9 +241,10 @@ class MockAuthService implements IAuthService {
     const user: User = {
       id: "owner-user-01",
       agencyId: "agency-default-01",
-      email: normalized,
-      name: normalized.split("@")[0].replace(".", " "),
+      email: "mock@alpine-expeditions.com",
+      name: username,
       role: "owner",
+      username,
     };
 
     this.currentUser = user;
@@ -285,7 +261,7 @@ class MockAuthService implements IAuthService {
     }
   }
 
-  async forgotPassword(_email: string): Promise<void> {
+  async forgotPassword(_username: string): Promise<void> {
     // Mock: no-op
   }
 
@@ -299,7 +275,6 @@ class MockAuthService implements IAuthService {
 
   async getAgency(_agencyId: string = "agency-default-01"): Promise<Agency> {
     this.init();
-    // Return mock agency data
     return {
       id: "agency-default-01",
       name: "Alpine & Co. Expeditions",
@@ -321,33 +296,27 @@ class MockAuthService implements IAuthService {
 
   async updateAgency(
     _agencyId: string = "agency-default-01",
-    data: Partial<Agency>
+    _data: Partial<Agency>
   ): Promise<Agency> {
     this.init();
-    // In mock mode, just return the current agency data
-    // Real updates would go to Supabase
     return this.getAgency(_agencyId);
   }
 
-  async signup(email: string, password: string, fullName: string): Promise<User> {
+  async signup(_email: string, _password: string, fullName: string, username: string): Promise<User> {
     this.init();
-    // In mock mode without Supabase, always allow but log warning
-    const normalized = email.trim().toLowerCase();
     const user: User = {
       id: `mock-user-${Date.now()}`,
       agencyId: "agency-default-01",
-      email: normalized,
-      name: fullName || normalized.split("@")[0].replace(".", " "),
+      email: "mock@alpine-expeditions.com",
+      name: fullName || username,
       role: "owner",
+      username,
     };
 
     this.currentUser = user;
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(
-          "alpine_auth_user_v1",
-          JSON.stringify(user)
-        );
+        localStorage.setItem("alpine_auth_user_v1", JSON.stringify(user));
       } catch (e) {
         console.warn("Failed to save mock user to localStorage", e);
       }
@@ -356,11 +325,6 @@ class MockAuthService implements IAuthService {
   }
 }
 
-/**
- * Exported singleton.
- * Uses SupabaseAuthService when NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set;
- * otherwise falls back to MockAuthService for local development.
- */
 export const authService: IAuthService = hasSupabase
   ? new SupabaseAuthService()
   : new MockAuthService();

@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Compass, Lock, Mail, ArrowRight, Eye, EyeOff, Check } from "lucide-react";
+import { Compass, Lock, Mail, ArrowRight, Eye, EyeOff, Check, User } from "lucide-react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/
 
 interface PasswordRequirement {
@@ -40,6 +41,7 @@ function strengthColor(s: "Weak" | "Fair" | "Strong"): string {
 export default function AdminSignupPage() {
   const router = useRouter()
   const [fullName, setFullName] = useState("")
+  const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -78,9 +80,13 @@ export default function AdminSignupPage() {
     const errors: Record<string, string> = {}
     const trimmedName = fullName.trim()
     const trimmedEmail = email.trim()
+    const trimmedUsername = username.trim()
 
     if (!trimmedName || trimmedName.length < 2) {
       errors.fullName = "Full name is required (at least 2 characters)."
+    }
+    if (!trimmedUsername || !USERNAME_RE.test(trimmedUsername)) {
+      errors.username = "Username must be 3-30 characters (letters, numbers, underscores)."
     }
     if (!trimmedEmail || !EMAIL_RE.test(trimmedEmail)) {
       errors.email = "Please enter a valid email address."
@@ -94,7 +100,7 @@ export default function AdminSignupPage() {
 
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
-  }, [fullName, email, password, confirmPassword, passwordsMatch])
+  }, [fullName, username, email, password, confirmPassword, passwordsMatch])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,7 +117,7 @@ export default function AdminSignupPage() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim() }),
+        body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim(), username: username.trim() }),
       })
 
       const data = await response.json()
@@ -254,6 +260,29 @@ export default function AdminSignupPage() {
             />
             {fieldErrors.fullName && (
               <span className="text-[11px] text-red-500 mt-0.5">{fieldErrors.fullName}</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[#374151]">
+              Username
+            </label>
+            <div className="relative">
+              <User className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-3" />
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. john_owner"
+                autoComplete="username"
+                className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:ring-2 focus-ring-[#4B6B5B]/20 outline-hidden ${
+                  fieldErrors.username ? "border-red-400" : "border-[#E5E0D8]"
+                }`}
+              />
+            </div>
+            {fieldErrors.username && (
+              <span className="text-[11px] text-red-500 mt-0.5">{fieldErrors.username}</span>
             )}
           </div>
 

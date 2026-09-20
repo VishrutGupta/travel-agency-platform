@@ -1,4 +1,4 @@
-export type AgencyRole = "owner" | "admin" | "agent";
+export type AgencyRole = "owner" | "admin" | "staff";
 
 export interface Agency {
   id: string;
@@ -24,6 +24,10 @@ export interface User {
   email: string;
   name: string;
   role: AgencyRole;
+  username?: string;
+  isDisabled?: boolean;
+  permissions?: string[];
+  createdAt?: string;
 }
 
 export interface ItineraryItem {
@@ -130,12 +134,27 @@ export interface ChatMessageItem {
   actionSuggestions?: { label: string; action: string }[];
 }
 
+export interface AuditLog {
+  id: string;
+  agencyId: string;
+  actorUserId: string;
+  actorUsername: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string;
+  description: string;
+  beforeData?: Record<string, unknown>;
+  afterData?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface IAuthService {
   getCurrentUser(): Promise<User | null>;
-  login(email: string, password: string): Promise<User>;
+  login(username: string, password: string): Promise<User>;
   logout(): Promise<void>;
-  signup(email: string, password: string, fullName: string): Promise<User>;
-  forgotPassword(email: string): Promise<void>;
+  signup(email: string, password: string, fullName: string, username: string): Promise<User>;
+  forgotPassword(username: string): Promise<void>;
   resetPassword(token: string, newPassword: string): Promise<void>;
   changePassword(currentPassword: string, newPassword: string): Promise<void>;
   getAgency(agencyId?: string): Promise<Agency>;

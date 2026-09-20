@@ -3,11 +3,11 @@ import { createServerClient } from "@supabase/ssr";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, fullName } = await request.json();
+    const { email, password, fullName, username } = await request.json();
 
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName || !username) {
       return NextResponse.json(
-        { error: "Email, password, and full name are required." },
+        { error: "Email, password, full name, and username are required." },
         { status: 400 }
       );
     }
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       agencyId = newAgency.id;
     }
 
-    // Create the owner profile
+    // Create the owner profile with username
     const { error: profileError } = await supabase
       .from("profiles")
       .insert({
@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
         agency_id: agencyId,
         full_name: fullName,
         role: "owner",
+        username: username.trim(),
       });
 
     if (profileError) {
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
           id: signUpData.user.id,
           email: signUpData.user.email,
           full_name: fullName,
+          username: username.trim(),
         },
         requiresEmailConfirmation: !signUpData.session,
       },

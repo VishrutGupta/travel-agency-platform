@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -9,6 +9,8 @@ import {
   Map,
   PlusCircle,
   Settings,
+  Users,
+  ScrollText,
   LogOut,
   ExternalLink,
   Menu,
@@ -17,27 +19,55 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { authService } from "@/lib/services/authService";
 
+interface NavItem {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  permission?: string;
+}
+
+const ALL_NAV_ITEMS: NavItem[] = [
+  { label: "Dashboard", href: "/admin", icon: LayoutDashboard, permission: "dashboard.view" },
+  { label: "All Trips", href: "/admin/trips", icon: Map, permission: "trips.view" },
+  { label: "Add New Trip", href: "/admin/trips/new", icon: PlusCircle, permission: "trips.create" },
+  { label: "Users", href: "/admin/users", icon: Users, permission: "users.view" },
+  { label: "Audit Logs", href: "/admin/logs", icon: ScrollText, permission: "logs.view" },
+  { label: "Agency Settings", href: "/admin/settings", icon: Settings, permission: "settings.view" },
+];
+
 export const AdminSidebar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [role, setRole] = useState<string>("");
+
+  useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.permissions) setPermissions(data.permissions);
+        if (data.user?.role) setRole(data.user.role);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isOwner = role === "owner";
+
+  const navItems = ALL_NAV_ITEMS.filter((item) => {
+    if (isOwner) return true;
+    if (!item.permission) return true;
+    return permissions.includes(item.permission);
+  });
 
   const handleLogout = async () => {
     await authService.logout();
     router.push("/admin/login");
   };
 
-  const navItems = [
-    { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { label: "All Trips", href: "/admin/trips", icon: Map },
-    { label: "Add New Trip", href: "/admin/trips/new", icon: PlusCircle },
-    { label: "Agency Settings", href: "/admin/settings", icon: Settings },
-  ];
-
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between p-5 bg-[#1C1E21] text-white">
       <div>
-        {/* Brand */}
         <div className="flex items-center justify-between pb-6 mb-6 border-b border-white/10">
           <Link href="/admin" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
@@ -48,7 +78,7 @@ export const AdminSidebar: React.FC = () => {
                 Alpine Portal
               </span>
               <span className="text-[10px] text-stone-400 uppercase tracking-widest">
-                Owner Dashboard
+                {isOwner ? "Owner Dashboard" : `${role} Dashboard`}
               </span>
             </div>
           </Link>
@@ -62,7 +92,6 @@ export const AdminSidebar: React.FC = () => {
           </button>
         </div>
 
-        {/* Navigation items */}
         <nav className="flex flex-col gap-1.5">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -91,7 +120,6 @@ export const AdminSidebar: React.FC = () => {
         </nav>
       </div>
 
-      {/* Footer controls */}
       <div className="pt-6 border-t border-white/10 flex flex-col gap-2">
         <Link
           href="/"
@@ -116,16 +144,14 @@ export const AdminSidebar: React.FC = () => {
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
       <aside className="hidden md:block w-64 shrink-0 h-screen sticky top-0">
         {sidebarContent}
       </aside>
 
-      {/* Mobile Top Header with toggle */}
       <header className="md:hidden sticky top-0 z-30 bg-[#1C1E21] text-white p-4 flex items-center justify-between border-b border-white/10">
         <div className="flex items-center gap-2">
           <Compass className="w-5 h-5 text-emerald-400" />
-          <span className="font-semibold text-sm">Owner Admin</span>
+          <span className="font-semibold text-sm">Alpine Portal</span>
         </div>
         <button
           type="button"
@@ -137,7 +163,6 @@ export const AdminSidebar: React.FC = () => {
         </button>
       </header>
 
-      {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden bg-black/60 backdrop-blur-xs flex">
           <div className="w-72 h-full bg-[#1C1E21]">

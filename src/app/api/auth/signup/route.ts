@@ -3,11 +3,11 @@ import { createServerClient } from "@supabase/ssr";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, fullName } = await request.json();
+    const { email, password, fullName, username } = await request.json();
 
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName || !username) {
       return NextResponse.json(
-        { error: "Email, password, and full name are required." },
+        { error: "Email, password, full name, and username are required." },
         { status: 400 }
       );
     }
@@ -46,6 +46,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "An owner account already exists. Please sign in." },
         { status: 403 }
+      );
+    }
+
+    // Check if username is already taken
+    const { data: existingUsername, error: usernameCheckError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", username.trim())
+      .maybeSingle();
+
+    if (usernameCheckError) {
+      console.error("[signup] Username check error:", usernameCheckError.code, usernameCheckError.message);
+    }
+
+    if (existingUsername) {
+      return NextResponse.json(
+        { error: "This username is already taken. Please choose another." },
+        { status: 409 }
       );
     }
 
@@ -142,7 +160,7 @@ export async function POST(request: NextRequest) {
       agencyId = newAgency.id;
     }
 
-    // Create the owner profile
+    // Create the owner profile with username
     const { error: profileError } = await supabase
       .from("profiles")
       .insert({
@@ -150,6 +168,7 @@ export async function POST(request: NextRequest) {
         agency_id: agencyId,
         full_name: fullName,
         role: "owner",
+        username: username.trim(),
       });
 
     if (profileError) {

@@ -58,20 +58,45 @@ export default function AdminSettingsPage() {
     setSaved(false);
 
     try {
-      const updated = await authService.updateAgency(DEFAULT_AGENCY_ID, {
-        name,
-        tagline,
-        description,
-        phone,
-        whatsapp: whatsapp.replace(/\D/g, ""), // clean digits
-        email,
-        address,
-        instagram,
-        facebook,
-        website,
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          tagline,
+          description,
+          phone,
+          whatsapp: whatsapp.replace(/\D/g, ""),
+          email,
+          address,
+          instagram,
+          facebook,
+          website,
+        }),
       });
 
-      setAgency(updated);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update agency configuration.");
+      }
+
+      if (data.agency) {
+        setAgency({
+          ...agency!,
+          name: data.agency.name || name,
+          tagline: data.agency.tagline || tagline,
+          description: data.agency.description || description,
+          phone: data.agency.phone || phone,
+          whatsapp: data.agency.whatsapp || whatsapp,
+          email: data.agency.email || email,
+          address: data.agency.address || address,
+          instagram: data.agency.instagram_url || instagram,
+          facebook: data.agency.facebook_url || facebook,
+          website: data.agency.website_url || website,
+        });
+      }
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
