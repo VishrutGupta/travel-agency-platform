@@ -87,18 +87,18 @@ export default function AdminUsersPage() {
 
   const handleToggleDisable = async (u: UserRow) => {
     if (!isOwner && u.role === "owner") return;
-    await fetch(`/api/admin/users/${u.id}`, {
+    const res = await fetch(`/api/admin/users/${u.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isDisabled: !u.isDisabled }),
     });
-    fetchUsers();
+    if (res.ok) fetchUsers();
   };
 
   const handleDelete = async (u: UserRow) => {
     if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return;
-    await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
-    fetchUsers();
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
+    if (res.ok) fetchUsers();
   };
 
   return (

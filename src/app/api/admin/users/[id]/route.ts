@@ -16,9 +16,9 @@ export async function GET(
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 
-  const { supabase } = createClient(request);
+  const admin = getSupabaseAdmin();
 
-  const { data: profile, error } = await supabase
+  const { data: profile, error } = await admin
     .from("profiles")
     .select("id, agency_id, full_name, role, username, is_disabled, created_at")
     .eq("id", id)
@@ -28,7 +28,7 @@ export async function GET(
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
 
-  const { data: perms } = await supabase
+  const { data: perms } = await admin
     .from("user_permissions")
     .select("permission")
     .eq("user_id", id);
@@ -57,9 +57,10 @@ export async function PUT(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const admin = getSupabaseAdmin();
   const { supabase } = createClient(request);
 
-  const { data: targetProfile } = await supabase
+  const { data: targetProfile } = await admin
     .from("profiles")
     .select("id, role, username, full_name, is_disabled")
     .eq("id", id)
@@ -106,13 +107,7 @@ export async function PUT(
     username: targetProfile.username,
   };
 
-  const afterData: Record<string, unknown> = {};
-  if (fullName !== undefined) afterData.full_name = fullName;
-  if (role !== undefined) afterData.role = role;
-  if (isDisabled !== undefined) afterData.is_disabled = isDisabled;
-  afterData.username = targetProfile.username;
-
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from("profiles")
     .update(updatePayload)
     .eq("id", id);
@@ -120,6 +115,33 @@ export async function PUT(
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
+
+  const { data: updatedProfile } = await admin
+    .from("profiles")
+    .select("id, role, username, full_name, is_disabled")
+    .eq("id", id)
+    .single();
+
+  if (!updatedProfile) {
+    return NextResponse.json({ error: "Update succeeded but could not verify." }, { status: 500 });
+  }
+
+  if (role !== undefined && updatedProfile.role !== role) {
+    return NextResponse.json({ error: `Update failed: role is still "${updatedProfile.role}".` }, { status: 500 });
+  }
+  if (fullName !== undefined && updatedProfile.full_name !== fullName) {
+    return NextResponse.json({ error: `Update failed: name is still "${updatedProfile.full_name}".` }, { status: 500 });
+  }
+  if (isDisabled !== undefined && updatedProfile.is_disabled !== isDisabled) {
+    return NextResponse.json({ error: `Update failed: disabled status unchanged.` }, { status: 500 });
+  }
+
+  const afterData: Record<string, unknown> = {
+    full_name: updatedProfile.full_name,
+    role: updatedProfile.role,
+    is_disabled: updatedProfile.is_disabled,
+    username: updatedProfile.username,
+  };
 
   let action = "user.update";
   let description = `Updated user "${targetProfile.username}"`;
@@ -131,7 +153,7 @@ export async function PUT(
     action = "user.enable";
     description = `Enabled user "${targetProfile.username}"`;
   } else if (role !== undefined && role !== targetProfile.role) {
-    description = `Changed role for "${targetProfile.username}" from "${targetProfile.role}" to "${role}"`;
+    description = `Changed role for "${targetProfile.username}" from "${targetProfile.role}" to "${updatedProfile.role}"`;
   } else if (fullName !== undefined && fullName !== targetProfile.full_name) {
     description = `Updated name for "${targetProfile.username}"`;
   }
@@ -165,9 +187,10 @@ export async function DELETE(
     return NextResponse.json({ error: "You do not have permission to delete users." }, { status: 403 });
   }
 
+  const admin = getSupabaseAdmin();
   const { supabase } = createClient(request);
 
-  const { data: targetProfile } = await supabase
+  const { data: targetProfile } = await admin
     .from("profiles")
     .select("id, role, username, full_name")
     .eq("id", id)
@@ -191,7 +214,7 @@ export async function DELETE(
     role: targetProfile.role,
   };
 
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await admin
     .from("profiles")
     .delete()
     .eq("id", id);
@@ -200,7 +223,6 @@ export async function DELETE(
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  const admin = getSupabaseAdmin();
   await admin.auth.admin.deleteUser(id).catch((err) => {
     console.error("[USER DELETE] Auth user cleanup failed:", err.message);
   });

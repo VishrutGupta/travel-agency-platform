@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 
-  const { supabase } = createClient(request);
+  const admin = getSupabaseAdmin();
 
-  const { data: profiles, error } = await supabase
+  const { data: profiles, error } = await admin
     .from("profiles")
     .select("id, agency_id, full_name, role, username, is_disabled, created_at")
     .eq("agency_id", user.agencyId)

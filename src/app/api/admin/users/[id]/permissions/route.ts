@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, hasPermission, createClient } from "@/lib/server/authorization";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { auditLog } from "@/lib/server/auditLog";
 
 export async function GET(
@@ -16,9 +17,9 @@ export async function GET(
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 
-  const { supabase } = createClient(request);
+  const admin = getSupabaseAdmin();
 
-  const { data: perms, error } = await supabase
+  const { data: perms, error } = await admin
     .from("user_permissions")
     .select("permission")
     .eq("user_id", id);
@@ -46,8 +47,9 @@ export async function PUT(
   }
 
   const { supabase } = createClient(request);
+  const admin = getSupabaseAdmin();
 
-  const { data: targetProfile } = await supabase
+  const { data: targetProfile } = await admin
     .from("profiles")
     .select("id, role, username")
     .eq("id", id)
@@ -67,14 +69,14 @@ export async function PUT(
     return NextResponse.json({ error: "Permissions must be an array." }, { status: 400 });
   }
 
-  const { data: currentPerms } = await supabase
+  const { data: currentPerms } = await admin
     .from("user_permissions")
     .select("permission")
     .eq("user_id", id);
 
   const oldPerms = (currentPerms || []).map((p: { permission: string }) => p.permission).sort();
 
-  await supabase
+  await admin
     .from("user_permissions")
     .delete()
     .eq("user_id", id);
@@ -86,7 +88,7 @@ export async function PUT(
       permission: perm,
     }));
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await admin
       .from("user_permissions")
       .insert(rows);
 
