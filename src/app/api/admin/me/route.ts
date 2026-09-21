@@ -1,20 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, createClient } from "@/lib/server/authorization";
 
+const ALL_PERMISSIONS = [
+  "dashboard.view",
+  "trips.view", "trips.create", "trips.edit", "trips.delete",
+  "settings.view", "settings.edit",
+  "users.view", "users.create", "users.edit", "users.disable", "users.delete", "users.permissions",
+  "logs.view",
+  "storage.upload", "storage.delete",
+];
+
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { supabase } = createClient(request);
+  let permissions: string[];
 
-  // Use the SECURITY DEFINER function to get permissions
-  const { data: permissions, error } = await supabase
-    .rpc("get_user_permissions", { p_user_id: user.id });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (user.role === "owner") {
+    permissions = ALL_PERMISSIONS;
+  } else {
+    const { supabase } = createClient(request);
+    const { data: perms } = await supabase
+      .from("user_permissions")
+      .select("permission")
+      .eq("user_id", user.id);
+    permissions = (perms || []).map((p: { permission: string }) => p.permission);
   }
 
   return NextResponse.json({
@@ -24,6 +36,6 @@ export async function GET(request: NextRequest) {
       role: user.role,
       name: user.fullName,
     },
-    permissions: permissions || [],
+    permissions,
   });
 }

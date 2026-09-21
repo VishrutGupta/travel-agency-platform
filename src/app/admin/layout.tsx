@@ -52,7 +52,7 @@ export default function AdminLayout({
       <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[#1C1E21] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-[#6B7280]">Verifying owner session...</span>
+          <span className="text-xs text-[#6B7280]">Verifying session...</span>
         </div>
       </div>
     );

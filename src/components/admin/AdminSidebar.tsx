@@ -41,24 +41,42 @@ export const AdminSidebar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [role, setRole] = useState<string>("");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/admin/me")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.permissions) setPermissions(data.permissions);
-        if (data.user?.role) setRole(data.user.role);
-      })
-      .catch(() => {});
+    let cancelled = false;
+
+    const loadPermissions = async () => {
+      try {
+        const res = await fetch("/api/admin/me");
+        if (!res.ok) {
+          if (!cancelled) setLoaded(true);
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) {
+          if (data.user?.role) setRole(data.user.role);
+          if (data.permissions) setPermissions(data.permissions);
+          setLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setLoaded(true);
+      }
+    };
+
+    loadPermissions();
+    return () => { cancelled = true; };
   }, []);
 
   const isOwner = role === "owner";
 
-  const navItems = ALL_NAV_ITEMS.filter((item) => {
-    if (isOwner) return true;
-    if (!item.permission) return true;
-    return permissions.includes(item.permission);
-  });
+  const navItems = loaded
+    ? ALL_NAV_ITEMS.filter((item) => {
+        if (isOwner) return true;
+        if (!item.permission) return true;
+        return permissions.includes(item.permission);
+      })
+    : [];
 
   const handleLogout = async () => {
     await authService.logout();
@@ -78,7 +96,7 @@ export const AdminSidebar: React.FC = () => {
                 Alpine Portal
               </span>
               <span className="text-[10px] text-stone-400 uppercase tracking-widest">
-                {isOwner ? "Owner Dashboard" : `${role} Dashboard`}
+                {isOwner ? "Owner Dashboard" : role ? `${role.charAt(0).toUpperCase() + role.slice(1)} Dashboard` : "Dashboard"}
               </span>
             </div>
           </Link>
@@ -117,6 +135,12 @@ export const AdminSidebar: React.FC = () => {
               </Link>
             );
           })}
+          {!loaded && (
+            <div className="px-3.5 py-2.5 text-xs text-stone-500">Loading...</div>
+          )}
+          {loaded && navItems.length === 0 && !isOwner && (
+            <div className="px-3.5 py-2.5 text-xs text-stone-500">No navigation available</div>
+          )}
         </nav>
       </div>
 

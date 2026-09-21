@@ -44,6 +44,7 @@ export default function AdminUsersPage() {
   const [editUser, setEditUser] = useState<UserRow | null>(null);
   const [permUser, setPermUser] = useState<UserRow | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
+  const [myPermissions, setMyPermissions] = useState<string[]>([]);
 
   const fetchUsers = useCallback(async () => {
     const res = await fetch("/api/admin/users");
@@ -64,6 +65,7 @@ export default function AdminUsersPage() {
       if (!cancelled) {
         if (usersData.users) setUsers(usersData.users);
         if (meData.user) setCurrentUser(meData.user);
+        if (meData.permissions) setMyPermissions(meData.permissions);
         setLoading(false);
       }
     };
@@ -72,6 +74,7 @@ export default function AdminUsersPage() {
   }, []);
 
   const isOwner = currentUser?.role === "owner";
+  const hasPerm = (p: string) => isOwner || myPermissions.includes(p);
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
@@ -109,7 +112,7 @@ export default function AdminUsersPage() {
             Manage admin users, roles, and permissions.
           </p>
         </div>
-        {isOwner && (
+        {hasPerm("users.create") && (
           <button
             onClick={() => setShowCreate(true)}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1C1E21] text-white text-xs font-semibold hover:bg-[#2A3A4A] transition-colors shadow-xs"
@@ -183,8 +186,8 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="py-4 px-4">
                       <button
-                        onClick={() => isOwner && handleToggleDisable(u)}
-                        disabled={!isOwner}
+                        onClick={() => hasPerm("users.disable") && handleToggleDisable(u)}
+                        disabled={!hasPerm("users.disable")}
                         className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
                           u.isDisabled ? "text-red-500" : "text-emerald-600"
                         } ${isOwner ? "cursor-pointer hover:underline" : "cursor-default"}`}
@@ -212,7 +215,7 @@ export default function AdminUsersPage() {
                         >
                           <Shield className="w-3.5 h-3.5" />
                         </button>
-                        {u.role !== "owner" && isOwner && (
+                        {u.role !== "owner" && hasPerm("users.delete") && (
                           <button
                             onClick={() => handleDelete(u)}
                             className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
@@ -234,11 +237,11 @@ export default function AdminUsersPage() {
       {showCreate && (
         <CreateUserModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchUsers(); }} />
       )}
-      {editUser && (
+      {editUser && hasPerm("users.edit") && (
         <EditUserModal user={editUser} onClose={() => setEditUser(null)} onSaved={() => { setEditUser(null); fetchUsers(); }} />
       )}
       {permUser && (
-        <PermissionsModal user={permUser} onClose={() => setPermUser(null)} onSaved={() => { setPermUser(null); fetchUsers(); }} isOwner={isOwner} />
+        <PermissionsModal user={permUser} onClose={() => setPermUser(null)} onSaved={() => { setPermUser(null); fetchUsers(); }} canEdit={hasPerm("users.permissions")} />
       )}
     </div>
   );
@@ -375,7 +378,7 @@ function EditUserModal({ user, onClose, onSaved }: { user: UserRow; onClose: () 
   );
 }
 
-function PermissionsModal({ user, onClose, onSaved, isOwner }: { user: UserRow; onClose: () => void; onSaved: () => void; isOwner: boolean }) {
+function PermissionsModal({ user, onClose, onSaved, canEdit }: { user: UserRow; onClose: () => void; onSaved: () => void; canEdit: boolean }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -406,7 +409,7 @@ function PermissionsModal({ user, onClose, onSaved, isOwner }: { user: UserRow; 
     onSaved();
   };
 
-  const canEdit = isOwner || user.role !== "owner";
+  const canEditPerms = canEdit && user.role !== "owner";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -427,8 +430,8 @@ function PermissionsModal({ user, onClose, onSaved, isOwner }: { user: UserRow; 
                   {perms.map((perm) => (
                     <button
                       key={perm}
-                      onClick={() => canEdit && toggle(perm)}
-                      disabled={!canEdit}
+                      onClick={() => canEditPerms && toggle(perm)}
+                      disabled={!canEditPerms}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         permissions.includes(perm)
                           ? "bg-[#4B6B5B] text-white"
@@ -442,7 +445,7 @@ function PermissionsModal({ user, onClose, onSaved, isOwner }: { user: UserRow; 
                 </div>
               </div>
             ))}
-            {canEdit && (
+            {canEditPerms && (
               <button onClick={handleSave} disabled={saving} className="w-full py-3 px-6 rounded-xl bg-[#1C1E21] hover:bg-[#2A3A4A] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-75 mt-4">
                 {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span>Save Permissions</span>}
               </button>
