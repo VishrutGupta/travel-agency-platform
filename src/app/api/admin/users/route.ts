@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, hasPermission, createClient } from "@/lib/server/authorization";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { auditLog } from "@/lib/server/auditLog";
 
 export async function GET(request: NextRequest) {
@@ -23,7 +24,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Enrich with email from auth (only accessible via SECURITY DEFINER)
   const enriched = (profiles || []).map((p: Record<string, unknown>) => ({
     id: p.id,
     agencyId: p.agency_id,
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!hasPermission(user, "users.create") && user.role !== "owner") {
-    return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+    return NextResponse.json({ error: "Only owners can create users." }, { status: 403 });
   }
 
   const { email, password, fullName, username, role } = await request.json();
@@ -56,10 +56,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Cannot create additional owner accounts." }, { status: 403 });
   }
 
+  if (!["admin", "staff"].includes(role)) {
+    return NextResponse.json({ error: "Invalid role. Must be admin or staff." }, { status: 400 });
+  }
+
+  const admin = getSupabaseAdmin();
   const { supabase, response } = createClient(request);
 
-  // Check username uniqueness
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from("profiles")
     .select("id")
     .eq("username", username.trim())
@@ -69,8 +73,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Username already taken." }, { status: 409 });
   }
 
-  // Create auth user
-  const { data: signUpData, error: signUpError } = await supabase.auth.admin.createUser({
+  const { data: signUpData, error: signUpError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -78,15 +81,18 @@ export async function POST(request: NextRequest) {
   });
 
   if (signUpError) {
-    return NextResponse.json({ error: signUpError.message }, { status: 400 });
+    console.error("[USER CREATE] Auth error:", signUpError.message);
+    const msg = signUpError.message.includes("already")
+      ? "Email already registered."
+      : "Unable to create the user. Please try again.";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   if (!signUpData.user) {
-    return NextResponse.json({ error: "Failed to create user." }, { status: 500 });
+    return NextResponse.json({ error: "Unable to create the user. Please try again." }, { status: 500 });
   }
 
-  // Create profile
-  const { error: profileError } = await supabase
+  const { error: profileError } = await admin
     .from("profiles")
     .insert({
       id: signUpData.user.id,
@@ -98,20 +104,27 @@ export async function POST(request: NextRequest) {
     });
 
   if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+    console.error("[USER CREATE] Profile error:", profileError.message);
+    await admin.auth.admin.deleteUser(signUpData.user.id).catch(() => {});
+    return NextResponse.json({ error: "Failed to create user profile." }, { status: 500 });
   }
 
-  // Audit log
   await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "CREATE",
-    resourceType: "User",
+    action: "user.create",
+    resourceType: "user",
     resourceId: signUpData.user.id,
     description: `Created user "${username}" with role "${role}"`,
-    afterData: { username, role, fullName },
+    afterData: {
+      full_name: fullName,
+      username: username.trim(),
+      role,
+      is_disabled: false,
+      agency_id: user.agencyId,
+    },
   });
 
   return NextResponse.json({ success: true, user: { id: signUpData.user.id, username, role } }, { status: 201 });

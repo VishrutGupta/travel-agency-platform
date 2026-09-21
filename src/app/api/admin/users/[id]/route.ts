@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, hasPermission, createClient } from "@/lib/server/authorization";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { auditLog } from "@/lib/server/auditLog";
 
 export async function GET(
@@ -27,7 +28,6 @@ export async function GET(
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
 
-  // Get permissions
   const { data: perms } = await supabase
     .from("user_permissions")
     .select("permission")
@@ -59,7 +59,6 @@ export async function PUT(
 
   const { supabase } = createClient(request);
 
-  // Get target user
   const { data: targetProfile } = await supabase
     .from("profiles")
     .select("id, role, username, full_name, is_disabled")
@@ -70,7 +69,6 @@ export async function PUT(
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
 
-  // Protect owner
   if (targetProfile.role === "owner" && user.role !== "owner") {
     return NextResponse.json({ error: "Cannot modify the owner account." }, { status: 403 });
   }
@@ -78,19 +76,16 @@ export async function PUT(
   const body = await request.json();
   const { fullName, role, isDisabled } = body;
 
-  // Only owner can change roles or disable users
   if (role !== undefined || isDisabled !== undefined) {
     if (user.role !== "owner" && !hasPermission(user, "users.edit")) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+      return NextResponse.json({ error: "You do not have permission to edit users." }, { status: 403 });
     }
   }
 
-  // Prevent removing owner role
   if (targetProfile.role === "owner" && role && role !== "owner") {
     return NextResponse.json({ error: "Cannot change the owner's role." }, { status: 403 });
   }
 
-  // Prevent disabling owner
   if (targetProfile.role === "owner" && isDisabled === true) {
     return NextResponse.json({ error: "Cannot disable the owner account." }, { status: 403 });
   }
@@ -104,11 +99,18 @@ export async function PUT(
     return NextResponse.json({ error: "No fields to update." }, { status: 400 });
   }
 
-  const beforeData = {
-    fullName: targetProfile.full_name,
+  const beforeData: Record<string, unknown> = {
+    full_name: targetProfile.full_name,
     role: targetProfile.role,
-    isDisabled: targetProfile.is_disabled,
+    is_disabled: targetProfile.is_disabled,
+    username: targetProfile.username,
   };
+
+  const afterData: Record<string, unknown> = {};
+  if (fullName !== undefined) afterData.full_name = fullName;
+  if (role !== undefined) afterData.role = role;
+  if (isDisabled !== undefined) afterData.is_disabled = isDisabled;
+  afterData.username = targetProfile.username;
 
   const { error: updateError } = await supabase
     .from("profiles")
@@ -119,17 +121,32 @@ export async function PUT(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
+  let action = "user.update";
+  let description = `Updated user "${targetProfile.username}"`;
+
+  if (isDisabled === true && !targetProfile.is_disabled) {
+    action = "user.disable";
+    description = `Disabled user "${targetProfile.username}"`;
+  } else if (isDisabled === false && targetProfile.is_disabled) {
+    action = "user.enable";
+    description = `Enabled user "${targetProfile.username}"`;
+  } else if (role !== undefined && role !== targetProfile.role) {
+    description = `Changed role for "${targetProfile.username}" from "${targetProfile.role}" to "${role}"`;
+  } else if (fullName !== undefined && fullName !== targetProfile.full_name) {
+    description = `Updated name for "${targetProfile.username}"`;
+  }
+
   await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "UPDATE",
-    resourceType: "User",
+    action,
+    resourceType: "user",
     resourceId: id,
-    description: `Updated user "${targetProfile.username}"`,
+    description,
     beforeData,
-    afterData: updatePayload,
+    afterData,
   });
 
   return NextResponse.json({ success: true });
@@ -145,14 +162,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!hasPermission(user, "users.delete") && user.role !== "owner") {
-    return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+    return NextResponse.json({ error: "You do not have permission to delete users." }, { status: 403 });
   }
 
   const { supabase } = createClient(request);
 
   const { data: targetProfile } = await supabase
     .from("profiles")
-    .select("id, role, username")
+    .select("id, role, username, full_name")
     .eq("id", id)
     .single();
 
@@ -168,7 +185,12 @@ export async function DELETE(
     return NextResponse.json({ error: "Cannot delete your own account." }, { status: 403 });
   }
 
-  // Delete profile (cascade will handle user_permissions)
+  const beforeData = {
+    username: targetProfile.username,
+    full_name: targetProfile.full_name,
+    role: targetProfile.role,
+  };
+
   const { error: deleteError } = await supabase
     .from("profiles")
     .delete()
@@ -178,19 +200,21 @@ export async function DELETE(
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  // Try to delete auth user (may fail if no admin key)
-  await supabase.auth.admin.deleteUser(id).catch(() => {});
+  const admin = getSupabaseAdmin();
+  await admin.auth.admin.deleteUser(id).catch((err) => {
+    console.error("[USER DELETE] Auth user cleanup failed:", err.message);
+  });
 
   await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "DELETE",
-    resourceType: "User",
+    action: "user.delete",
+    resourceType: "user",
     resourceId: id,
     description: `Deleted user "${targetProfile.username}"`,
-    beforeData: { username: targetProfile.username, role: targetProfile.role },
+    beforeData,
   });
 
   return NextResponse.json({ success: true });

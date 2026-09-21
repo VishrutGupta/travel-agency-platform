@@ -12,7 +12,6 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Users can view their own permissions; others need users.permissions
   if (id !== user.id && !hasPermission(user, "users.permissions") && user.role !== "owner") {
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
@@ -48,7 +47,6 @@ export async function PUT(
 
   const { supabase } = createClient(request);
 
-  // Check target user exists
   const { data: targetProfile } = await supabase
     .from("profiles")
     .select("id, role, username")
@@ -69,7 +67,6 @@ export async function PUT(
     return NextResponse.json({ error: "Permissions must be an array." }, { status: 400 });
   }
 
-  // Get current permissions for audit
   const { data: currentPerms } = await supabase
     .from("user_permissions")
     .select("permission")
@@ -77,13 +74,11 @@ export async function PUT(
 
   const oldPerms = (currentPerms || []).map((p: { permission: string }) => p.permission).sort();
 
-  // Delete existing permissions
   await supabase
     .from("user_permissions")
     .delete()
     .eq("user_id", id);
 
-  // Insert new permissions
   if (permissions.length > 0) {
     const rows = permissions.map((perm: string) => ({
       user_id: id,
@@ -100,17 +95,30 @@ export async function PUT(
     }
   }
 
+  const newPerms = [...permissions].sort();
+  const added = newPerms.filter((p) => !oldPerms.includes(p));
+  const removed = oldPerms.filter((p) => !newPerms.includes(p));
+
+  let description = `Updated permissions for "${targetProfile.username}"`;
+  if (added.length > 0 && removed.length > 0) {
+    description = `Changed permissions for "${targetProfile.username}": ${added.length} added, ${removed.length} removed`;
+  } else if (added.length > 0) {
+    description = `Added ${added.length} permission${added.length !== 1 ? "s" : ""} for "${targetProfile.username}"`;
+  } else if (removed.length > 0) {
+    description = `Removed ${removed.length} permission${removed.length !== 1 ? "s" : ""} from "${targetProfile.username}"`;
+  }
+
   await auditLog({
     supabase,
     agencyId: user.agencyId,
     actorUserId: user.id,
     actorUsername: user.username,
-    action: "UPDATE",
-    resourceType: "Permissions",
+    action: "user.permissions.update",
+    resourceType: "user",
     resourceId: id,
-    description: `Updated permissions for "${targetProfile.username}"`,
+    description,
     beforeData: { permissions: oldPerms },
-    afterData: { permissions: permissions.sort() },
+    afterData: { permissions: newPerms },
   });
 
   return NextResponse.json({ success: true, permissions });
