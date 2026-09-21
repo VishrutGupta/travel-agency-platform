@@ -18,8 +18,8 @@ const FIELD_LABELS: Record<string, string> = {
   original_price: "Original Price",
   short_description: "Short Description",
   description: "Description",
-  cover_image_url: "Cover Image",
-  gallery_urls: "Gallery Images",
+  cover_image_url: "Cover Photo",
+  gallery_urls: "Gallery",
   brochure_url: "Brochure",
   trip_type: "Trip Type",
   experience: "Experience",
@@ -68,9 +68,33 @@ const DATE_FIELDS = new Set(["start_date", "end_date", "created_at", "updated_at
 
 const BOOLEAN_FIELDS = new Set(["family_friendly", "featured", "is_active"]);
 
-const ARRAY_FIELDS = new Set(["highlights", "inclusions", "exclusions", "gallery_urls", "important_info"]);
+const ARRAY_FIELDS = new Set(["highlights", "inclusions", "exclusions", "important_info"]);
 
 const ITINERARY_FIELDS = new Set(["itinerary"]);
+
+const URL_FIELDS = new Set(["cover_image_url", "brochure_url", "gallery_urls"]);
+
+function extractFilename(url: string): string {
+  try {
+    const u = new URL(url);
+    const segments = u.pathname.split("/").filter(Boolean);
+    const last = segments[segments.length - 1] || "";
+    if (last && last.includes(".")) return decodeURIComponent(last);
+  } catch {}
+  const parts = url.split("?")[0].split("/");
+  const last = parts[parts.length - 1] || "";
+  if (last && last.includes(".")) return decodeURIComponent(last);
+  return "";
+}
+
+function describeUrlChange(oldVal: string, newVal: string): { oldLabel: string; newLabel: string } {
+  const oldFile = extractFilename(oldVal);
+  const newFile = extractFilename(newVal);
+  return {
+    oldLabel: oldFile || "Previous file",
+    newLabel: newFile || "New file",
+  };
+}
 
 export function getLabel(key: string): string {
   return FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -87,6 +111,9 @@ export function formatValue(key: string, value: unknown): string {
         return d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
       }
     } catch {}
+  }
+  if (key === "gallery_urls" && Array.isArray(value)) {
+    return value.length > 0 ? `${value.length} image${value.length !== 1 ? "s" : ""}` : "\u2014";
   }
   if (ARRAY_FIELDS.has(key) && Array.isArray(value)) {
     return value.length > 0 ? value.join(", ") : "\u2014";
@@ -124,14 +151,52 @@ export function computeChanges(
 
     if (bStr === aStr) continue;
 
+    const label = getLabel(key);
+
+    if (key === "cover_image_url" || key === "brochure_url") {
+      const bIsEmpty = !bVal || bVal === null || bVal === undefined || bVal === "";
+      const aIsEmpty = !aVal || aVal === null || aVal === undefined || aVal === "";
+
+      if (bIsEmpty && !aIsEmpty) {
+        const filename = extractFilename(String(aVal));
+        changes.push({ label, oldValue: "", newValue: filename || "Added", type: "added" });
+      } else if (!bIsEmpty && aIsEmpty) {
+        const filename = extractFilename(String(bVal));
+        changes.push({ label, oldValue: filename || "Removed", newValue: "", type: "removed" });
+      } else if (!bIsEmpty && !aIsEmpty) {
+        const { oldLabel, newLabel } = describeUrlChange(String(bVal), String(aVal));
+        if (oldLabel !== newLabel) {
+          changes.push({ label, oldValue: oldLabel, newValue: newLabel, type: "changed" });
+        }
+      }
+      continue;
+    }
+
+    if (key === "gallery_urls") {
+      const bArr = Array.isArray(bVal) ? bVal : [];
+      const aArr = Array.isArray(aVal) ? aVal : [];
+      const bSet = new Set(bArr.map(String));
+      const aSet = new Set(aArr.map(String));
+      const added = aArr.filter((v) => !bSet.has(String(v)));
+      const removed = bArr.filter((v) => !aSet.has(String(v)));
+
+      if (added.length === 0 && removed.length === 0) continue;
+
+      const parts: string[] = [];
+      if (added.length > 0) parts.push(`${added.length} image${added.length !== 1 ? "s" : ""} added`);
+      if (removed.length > 0) parts.push(`${removed.length} image${removed.length !== 1 ? "s" : ""} removed`);
+      changes.push({ label, oldValue: removed.length > 0 ? `${removed.length} removed` : "", newValue: added.length > 0 ? `${added.length} added` : "", type: added.length > 0 && removed.length > 0 ? "changed" : added.length > 0 ? "added" : "removed" });
+      continue;
+    }
+
     if (bVal === undefined || bVal === null) {
       if (aVal !== undefined && aVal !== null) {
-        changes.push({ label: getLabel(key), oldValue: "", newValue: formatValue(key, aVal), type: "added" });
+        changes.push({ label, oldValue: "", newValue: formatValue(key, aVal), type: "added" });
       }
     } else if (aVal === undefined || aVal === null) {
-      changes.push({ label: getLabel(key), oldValue: formatValue(key, bVal), newValue: "", type: "removed" });
+      changes.push({ label, oldValue: formatValue(key, bVal), newValue: "", type: "removed" });
     } else {
-      changes.push({ label: getLabel(key), oldValue: formatValue(key, bVal), newValue: formatValue(key, aVal), type: "changed" });
+      changes.push({ label, oldValue: formatValue(key, bVal), newValue: formatValue(key, aVal), type: "changed" });
     }
   }
 
