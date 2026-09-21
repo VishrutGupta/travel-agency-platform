@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser, createClient } from "@/lib/server/authorization";
+import { getAuthUser } from "@/lib/server/authorization";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const ALL_PERMISSIONS = [
   "dashboard.view",
@@ -21,8 +22,8 @@ export async function GET(request: NextRequest) {
   if (user.role === "owner") {
     permissions = ALL_PERMISSIONS;
   } else {
-    const { supabase } = createClient(request);
-    const { data: perms } = await supabase
+    const admin = getSupabaseAdmin();
+    const { data: perms } = await admin
       .from("user_permissions")
       .select("permission")
       .eq("user_id", user.id);

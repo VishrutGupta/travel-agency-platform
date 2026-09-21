@@ -109,6 +109,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to create user profile." }, { status: 500 });
   }
 
+  const DEFAULT_ADMIN_PERMISSIONS = [
+    "dashboard.view",
+    "trips.view", "trips.create", "trips.edit", "trips.delete",
+    "settings.view", "settings.edit",
+    "users.view", "users.create", "users.edit", "users.disable", "users.delete", "users.permissions",
+    "logs.view",
+    "storage.upload", "storage.delete",
+  ];
+
+  const DEFAULT_STAFF_PERMISSIONS = [
+    "dashboard.view",
+    "trips.view",
+  ];
+
+  const defaultPerms = role === "admin" ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_STAFF_PERMISSIONS;
+  const permRows = defaultPerms.map((perm) => ({
+    user_id: signUpData.user.id,
+    agency_id: user.agencyId,
+    permission: perm,
+  }));
+
+  const { error: permError } = await admin
+    .from("user_permissions")
+    .insert(permRows);
+
+  if (permError) {
+    console.error("[USER CREATE] Permissions error:", permError.message);
+  }
+
   await auditLog({
     supabase,
     agencyId: user.agencyId,
