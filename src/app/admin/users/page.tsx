@@ -330,32 +330,48 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 function EditUserModal({ user, onClose, onSaved }: { user: UserRow; onClose: () => void; onSaved: () => void }) {
   const [fullName, setFullName] = useState(user.name);
-  const [role, setRole] = useState(user.role);
+  const [role, setRole] = useState(user.role === "owner" ? "owner" : user.role);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const isTargetOwner = user.role === "owner";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(null);
     setLoading(true);
-    const res = await fetch(`/api/admin/users/${user.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName, role }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setError(data.error || "Failed to update."); return; }
-    onSaved();
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, role: isTargetOwner ? "owner" : role }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to update user.");
+        setLoading(false);
+        return;
+      }
+      setSuccess("User updated successfully.");
+      setLoading(false);
+      setTimeout(() => onSaved(), 800);
+    } catch {
+      setError("Unable to update user. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl border border-[#E5E0D8] p-6 sm:p-8 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl border border-[#E5E0D8] p-6 sm:p-8 w-full max-w-md shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-[#1C1E21]">Edit User: {user.username}</h2>
           <button onClick={onClose} className="text-stone-400 hover:text-[#1C1E21]"><X className="w-5 h-5" /></button>
         </div>
         {error && <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">{error}</div>}
+        {success && <div className="p-3 mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">{success}</div>}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[#374151]">Full Name</label>
@@ -363,15 +379,25 @@ function EditUserModal({ user, onClose, onSaved }: { user: UserRow; onClose: () 
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[#374151]">Role</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)} disabled={role === "owner"} className="px-3.5 py-2.5 rounded-xl border border-[#E5E0D8] text-xs sm:text-sm focus:ring-2 focus:ring-[#4B6B5B]/20 outline-hidden disabled:opacity-50">
-              <option value="owner">Owner</option>
-              <option value="admin">Admin</option>
-              <option value="staff">Staff</option>
-            </select>
+            {isTargetOwner ? (
+              <div className="px-3.5 py-2.5 rounded-xl border border-[#E5E0D8] text-xs sm:text-sm bg-stone-50 text-[#6B7280]">
+                Owner
+              </div>
+            ) : (
+              <select value={role} onChange={(e) => setRole(e.target.value)} className="px-3.5 py-2.5 rounded-xl border border-[#E5E0D8] text-xs sm:text-sm focus:ring-2 focus:ring-[#4B6B5B]/20 outline-hidden">
+                <option value="admin">Admin</option>
+                <option value="staff">Staff</option>
+              </select>
+            )}
           </div>
-          <button type="submit" disabled={loading} className="w-full py-3 px-6 rounded-xl bg-[#1C1E21] hover:bg-[#2A3A4A] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-75">
-            {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span>Save Changes</span>}
-          </button>
+          <div className="flex gap-3 mt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-3 px-6 rounded-xl border border-[#E5E0D8] text-[#6B7280] text-xs sm:text-sm font-semibold hover:bg-stone-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading || !!success} className="flex-1 py-3 px-6 rounded-xl bg-[#1C1E21] hover:bg-[#2A3A4A] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-75">
+              {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span>Save Changes</span>}
+            </button>
+          </div>
         </form>
       </div>
     </div>
