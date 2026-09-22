@@ -136,12 +136,52 @@ export async function PUT(
     return NextResponse.json({ error: `Update failed: disabled status unchanged.` }, { status: 500 });
   }
 
+  const DEFAULT_ADMIN_PERMISSIONS = [
+    "dashboard.view",
+    "trips.view", "trips.create", "trips.edit", "trips.delete",
+    "settings.view", "settings.edit",
+    "users.view", "users.create", "users.edit", "users.disable", "users.delete", "users.permissions",
+    "logs.view",
+    "storage.upload", "storage.delete",
+  ];
+
+  const DEFAULT_STAFF_PERMISSIONS = [
+    "dashboard.view",
+    "trips.view",
+  ];
+
+  if (role !== undefined && role !== targetProfile.role) {
+    const newPerms = role === "admin" ? DEFAULT_ADMIN_PERMISSIONS : DEFAULT_STAFF_PERMISSIONS;
+
+    await admin.from("user_permissions").delete().eq("user_id", id);
+
+    if (newPerms.length > 0) {
+      const permRows = newPerms.map((perm) => ({
+        user_id: id,
+        agency_id: user.agencyId,
+        permission: perm,
+      }));
+      const { error: permError } = await admin.from("user_permissions").insert(permRows);
+      if (permError) {
+        console.error("[USER UPDATE] Permissions sync error:", permError.message);
+        return NextResponse.json({ error: "User updated but failed to sync permissions." }, { status: 500 });
+      }
+    }
+  }
+
   const afterData: Record<string, unknown> = {
     full_name: updatedProfile.full_name,
     role: updatedProfile.role,
     is_disabled: updatedProfile.is_disabled,
     username: updatedProfile.username,
   };
+
+  // Fetch actual current permissions to reflect real DB state in audit
+  const { data: currentPerms } = await admin
+    .from("user_permissions")
+    .select("permission")
+    .eq("user_id", id);
+  afterData.permissions = (currentPerms || []).map((p: { permission: string }) => p.permission);
 
   let action = "user.update";
   let description = `Updated user "${targetProfile.username}"`;
